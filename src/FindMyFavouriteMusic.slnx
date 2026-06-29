@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="FindMyFavouriteMusic.Core/FindMyFavouriteMusic.Core.csproj" />
+  <Project Path="FindMyFavouriteMusic.GUI/FindMyFavouriteMusic.GUI.csproj" />
+  <Project Path="FindMyFavouriteMusic.Models/FindMyFavouriteMusic.Models.csproj" />
+  <Project Path="FindMyFavouriteMusic.Services/FindMyFavouriteMusic.Services.csproj" />
+  <Project Path="FindMyFavouriteMusic.Tests/FindMyFavouriteMusic.Tests.csproj" />
+</Solution>

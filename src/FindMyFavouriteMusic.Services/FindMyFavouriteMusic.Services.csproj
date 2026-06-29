@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FindMyFavouriteMusic.Core\FindMyFavouriteMusic.Core.csproj" />
+    <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="$(MicrosoftExtensionsHostingVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(MicrosoftExtensionsHostingVersion)" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="$(MicrosoftExtensionsHostingVersion)" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="$(MicrosoftDataSqliteVersion)" />
+    <PackageReference Include="Dapper" Version="$(DapperVersion)" />
+    <PackageReference Include="NAudio.Core" Version="$(NAudioVersion)" />
+    <PackageReference Include="NWaves" Version="$(NWavesVersion)" />
+    <PackageReference Include="MathNet.Numerics" Version="$(MathNetNumericsVersion)" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="$(OnnxRuntimeVersion)" />
+  </ItemGroup>
+
+</Project>

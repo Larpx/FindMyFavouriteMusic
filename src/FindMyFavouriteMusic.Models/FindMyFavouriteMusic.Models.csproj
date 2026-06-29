@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Directory.Build.props 提供 TargetFramework/Nullable/ImplicitUsings 等统一属性 -->
+
+</Project>

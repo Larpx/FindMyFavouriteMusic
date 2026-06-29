@@ -1,0 +1,23 @@
+<Project>
+  <PropertyGroup>
+    <!-- Avalonia -->
+    <AvaloniaVersion>12.0.2</AvaloniaVersion>
+    <!-- MVVM -->
+    <CommunityToolkitMvvmVersion>8.4.1</CommunityToolkitMvvmVersion>
+    <!-- Audio -->
+    <NAudioVersion>2.2.1</NAudioVersion>
+    <NWavesVersion>0.9.6</NWavesVersion>
+    <!-- ML -->
+    <OnnxRuntimeVersion>1.22.0</OnnxRuntimeVersion>
+    <MathNetNumericsVersion>6.0.0</MathNetNumericsVersion>
+    <!-- Data -->
+    <MicrosoftDataSqliteVersion>9.0.5</MicrosoftDataSqliteVersion>
+    <DapperVersion>2.1.66</DapperVersion>
+    <!-- Hosting/DI/Logging -->
+    <MicrosoftExtensionsHostingVersion>9.0.5</MicrosoftExtensionsHostingVersion>
+    <!-- Testing -->
+    <XunitVersion>2.9.3</XunitVersion>
+    <MoqVersion>4.20.72</MoqVersion>
+    <FluentAssertionsVersion>8.2.0</FluentAssertionsVersion>
+  </PropertyGroup>
+</Project>
