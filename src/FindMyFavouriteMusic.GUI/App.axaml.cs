@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using FindMyFavouriteMusic.Core.Audio;
 using FindMyFavouriteMusic.Core.Configuration;
@@ -29,9 +28,6 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // 移除 Avalonia 的数据验证插件，避免与 CommunityToolkit.Mvvm 冲突
-        DataValidators.RemoveAt(0);
-
         _host = CreateHost();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

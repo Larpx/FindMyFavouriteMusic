@@ -1,11 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:FindMyFavouriteMusic.GUI.ViewModels"
+             xmlns:dto="using:FindMyFavouriteMusic.Models.Dtos"
+             xmlns:cvt="using:FindMyFavouriteMusic.GUI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
              x:Class="FindMyFavouriteMusic.GUI.Views.MusicLibraryView"
              x:DataType="vm:MusicLibraryViewModel">
+
+    <UserControl.Resources>
+        <cvt:BoolToLikeIconConverter x:Key="BoolToLikeIconConverter"/>
+    </UserControl.Resources>
 
     <DockPanel>
         <!-- 工具栏 -->
@@ -28,12 +34,13 @@
                 <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="*"/>
                 <DataGridTextColumn Header="艺术家" Binding="{Binding Artist}" Width="150"/>
                 <DataGridTextColumn Header="文件名" Binding="{Binding FilePath}" Width="200"/>
-                <DataGridTemplateColumn Header="喜欢" Width="60">
+                <DataGridTemplateColumn Header="喜欢" Width="80">
                     <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Button Content="{Binding IsLiked, Converter={x:Static String.Empty}}"
+                        <DataTemplate x:DataType="dto:SongDto">
+                            <Button Content="{Binding IsLiked, Converter={StaticResource BoolToLikeIconConverter}}"
                                     Command="{Binding $parent[DataGrid].((vm:MusicLibraryViewModel)DataContext).ToggleLikeCommand}"
-                                    CommandParameter="{Binding}"/>
+                                    CommandParameter="{Binding}"
+                                    Padding="4,2" FontSize="16"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

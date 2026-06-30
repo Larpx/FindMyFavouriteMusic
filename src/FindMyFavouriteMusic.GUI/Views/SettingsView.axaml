@@ -36,13 +36,13 @@
                     <CheckBox Content="启用深度特征" IsChecked="{Binding EnableDeepFeatures}"/>
                     
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Text="{Binding OnnxModelPath}" Watermark="VGGish 模型路径"
+                        <TextBox Text="{Binding OnnxModelPath}" PlaceholderText="VGGish 模型路径"
                                  Grid.Column="0"/>
                         <Button Content="加载模型" Command="{Binding LoadModelCommand}"
                                 Grid.Column="1" Padding="12,6"/>
                     </Grid>
                     
-                    <TextBlock Text="{Binding IsModelLoaded, Converter={x:Static String.Empty}}"
+                    <TextBlock Text="{Binding IsModelLoaded}"
                                Foreground="#6b7280" FontSize="14"/>
                 </StackPanel>
             </Border>

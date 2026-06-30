@@ -15,6 +15,11 @@ public partial class MusicLibraryViewModel : ViewModelBase
     private readonly IMusicLibraryService _libraryService;
     private readonly ILogger<MusicLibraryViewModel> _logger;
 
+    /// <summary>
+    /// 文件夹选择交互回调，由 View 层设置
+    /// </summary>
+    public Func<Task<string?>>? FolderPicker { get; set; }
+
     public MusicLibraryViewModel(
         IMusicLibraryService libraryService,
         ILogger<MusicLibraryViewModel> logger)
@@ -38,9 +43,23 @@ public partial class MusicLibraryViewModel : ViewModelBase
     [RelayCommand]
     private async Task ScanDirectoryAsync()
     {
-        // 文件对话框需要通过 View 层处理，此处使用占位路径
-        // 实际通过交互式方式获取目录
-        StatusMessage = "请选择音乐目录...";
+        if (IsScanning) return;
+
+        if (FolderPicker is not null)
+        {
+            var path = await FolderPicker();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                StatusMessage = "已取消选择";
+                return;
+            }
+
+            await ScanDirectoryAsync(path);
+        }
+        else
+        {
+            StatusMessage = "请选择音乐目录...";
+        }
     }
 
     /// <summary>
@@ -109,8 +128,8 @@ public partial class MusicLibraryViewModel : ViewModelBase
         var result = await _libraryService.GetAllSongsAsync();
         if (result.IsSuccess)
         {
-            Songs = new ObservableCollection<SongDto>(result.Value);
-            StatusMessage = $"已加载 {result.Value.Count} 首歌曲";
+            Songs = new ObservableCollection<SongDto>(result.Value ?? []);
+            StatusMessage = $"已加载 {(result.Value ?? []).Count} 首歌曲";
         }
         else
         {

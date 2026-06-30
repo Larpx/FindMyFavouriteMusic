@@ -15,6 +15,11 @@ public partial class PredictionViewModel : ViewModelBase
     private readonly IProfileService _profileService;
     private readonly ILogger<PredictionViewModel> _logger;
 
+    /// <summary>
+    /// 文件选择交互回调，由 View 层设置
+    /// </summary>
+    public Func<Task<string?>>? FilePicker { get; set; }
+
     public PredictionViewModel(
         IPredictionService predictionService,
         IProfileService profileService,
@@ -75,7 +80,7 @@ public partial class PredictionViewModel : ViewModelBase
 
             if (result.IsSuccess)
             {
-                var prediction = result.Value;
+                var prediction = result.Value!;
                 PredictionScore = Math.Round(prediction.Score, 1);
                 AcousticScore = Math.Round(prediction.AcousticScore, 1);
                 DeepScore = prediction.DeepScore.HasValue ? Math.Round(prediction.DeepScore.Value, 1) : null;
@@ -99,9 +104,19 @@ public partial class PredictionViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectFile()
+    private async Task SelectFileAsync()
     {
-        // 文件选择由 View 层处理
-        StatusMessage = "请选择音乐文件...";
+        if (FilePicker is not null)
+        {
+            var path = await FilePicker();
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                SelectedFilePath = path;
+            }
+        }
+        else
+        {
+            StatusMessage = "请选择音乐文件...";
+        }
     }
 }
