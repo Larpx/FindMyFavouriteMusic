@@ -3,18 +3,36 @@
         xmlns:vm="using:FindMyFavouriteMusic.GUI.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
         x:Class="FindMyFavouriteMusic.GUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
-        Title="FindMyFavouriteMusic.GUI">
+        Title="音乐品味预测系统"
+        Width="900" Height="600"
+        MinWidth="800" MinHeight="500">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+    <DockPanel>
+        <!-- 导航栏 -->
+        <Border DockPanel.Dock="Left" Background="#f3f4f6" Width="180" Padding="8">
+            <StackPanel Spacing="4">
+                <TextBlock Text="音乐品味预测" FontSize="16" FontWeight="SemiBold"
+                           Margin="0,0,0,16" Foreground="#111827"/>
+                
+                <Button Content="音乐库" Command="{Binding NavigateToCommand}"
+                        CommandParameter="Library" Padding="12,8"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+                
+                <Button Content="预测" Command="{Binding NavigateToCommand}"
+                        CommandParameter="Prediction" Padding="12,8"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+                
+                <Button Content="设置" Command="{Binding NavigateToCommand}"
+                        CommandParameter="Settings" Padding="12,8"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+            </StackPanel>
+        </Border>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <!-- 内容区域 -->
+        <ContentControl Content="{Binding CurrentPage}" Margin="16"/>
+    </DockPanel>
 
 </Window>

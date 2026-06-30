@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:FindMyFavouriteMusic.GUI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
+             x:Class="FindMyFavouriteMusic.GUI.Views.MusicLibraryView"
+             x:DataType="vm:MusicLibraryViewModel">
+
+    <DockPanel>
+        <!-- 工具栏 -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
+            <Button Content="扫描目录" Command="{Binding ScanDirectoryCommand}"
+                    IsEnabled="{Binding !IsScanning}" Padding="12,6"/>
+            <Button Content="刷新列表" Command="{Binding LoadAllSongsCommand}"
+                    Padding="12,6"/>
+            <ProgressBar Value="{Binding ScanProgress}" Width="200" Minimum="0" Maximum="100"
+                         IsVisible="{Binding IsScanning}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
+                       Foreground="#6b7280" FontSize="14"/>
+        </StackPanel>
+
+        <!-- 歌曲列表 -->
+        <DataGrid ItemsSource="{Binding Songs}" AutoGenerateColumns="False"
+                  CanUserResizeColumns="True" IsReadOnly="True"
+                  SelectionMode="Single" GridLinesVisibility="Horizontal">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="*"/>
+                <DataGridTextColumn Header="艺术家" Binding="{Binding Artist}" Width="150"/>
+                <DataGridTextColumn Header="文件名" Binding="{Binding FilePath}" Width="200"/>
+                <DataGridTemplateColumn Header="喜欢" Width="60">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding IsLiked, Converter={x:Static String.Empty}}"
+                                    Command="{Binding $parent[DataGrid].((vm:MusicLibraryViewModel)DataContext).ToggleLikeCommand}"
+                                    CommandParameter="{Binding}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+
+</UserControl>
