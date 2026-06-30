@@ -1,7 +1,7 @@
-using Avalonia;
+﻿using Avalonia;
 using System;
 
-namespace FindMyFavouriteMusic.GUI;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI;
 
 /// <summary>
 /// 应用程序入口，包含全局异常处理

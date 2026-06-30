@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Services.Database;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
 
 /// <summary>
 /// 数据库配置

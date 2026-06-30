@@ -1,7 +1,7 @@
-using FindMyFavouriteMusic.Models.Dtos;
-using FindMyFavouriteMusic.Models.Results;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 
-namespace FindMyFavouriteMusic.Services.Interfaces;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 
 /// <summary>
 /// 用户画像服务接口

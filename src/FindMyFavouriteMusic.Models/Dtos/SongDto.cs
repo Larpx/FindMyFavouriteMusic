@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Models.Dtos;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 
 /// <summary>
 /// 歌曲传输对象，用于 UI 展示

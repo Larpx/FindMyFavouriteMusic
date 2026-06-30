@@ -1,6 +1,6 @@
-using FindMyFavouriteMusic.Core.Features;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
 
-namespace FindMyFavouriteMusic.Tests.Core;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Core;
 
 public class FeatureAggregatorTests
 {

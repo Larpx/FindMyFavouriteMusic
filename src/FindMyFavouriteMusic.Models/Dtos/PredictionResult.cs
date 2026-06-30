@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Models.Dtos;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 
 /// <summary>
 /// 预测结果

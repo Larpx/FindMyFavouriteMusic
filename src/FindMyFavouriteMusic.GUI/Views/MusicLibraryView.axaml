@@ -1,12 +1,12 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:FindMyFavouriteMusic.GUI.ViewModels"
-             xmlns:dto="using:FindMyFavouriteMusic.Models.Dtos"
-             xmlns:cvt="using:FindMyFavouriteMusic.GUI.Converters"
+             xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
+             xmlns:dto="using:Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos"
+             xmlns:cvt="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
-             x:Class="FindMyFavouriteMusic.GUI.Views.MusicLibraryView"
+             x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.MusicLibraryView"
              x:DataType="vm:MusicLibraryViewModel">
 
     <UserControl.Resources>

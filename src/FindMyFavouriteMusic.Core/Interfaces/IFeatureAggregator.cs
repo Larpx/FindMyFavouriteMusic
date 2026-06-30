@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Core.Interfaces;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 
 /// <summary>
 /// 特征聚合接口，将帧级特征聚合为歌曲级特征

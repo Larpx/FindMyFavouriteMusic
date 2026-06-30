@@ -1,7 +1,7 @@
-using FindMyFavouriteMusic.Models.Enums;
-using FindMyFavouriteMusic.Models.Results;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 
-namespace FindMyFavouriteMusic.Core.Interfaces;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 
 /// <summary>
 /// 音频信息

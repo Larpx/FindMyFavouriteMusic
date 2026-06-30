@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Services.Database;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
 
 /// <summary>
 /// 扫描配置

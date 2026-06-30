@@ -1,6 +1,6 @@
-using FindMyFavouriteMusic.Models.Enums;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
 
-namespace FindMyFavouriteMusic.Core.Audio;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 
 /// <summary>
 /// 音频格式检测器

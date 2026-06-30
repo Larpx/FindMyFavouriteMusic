@@ -1,10 +1,10 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:FindMyFavouriteMusic.GUI.ViewModels"
+             xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
-             x:Class="FindMyFavouriteMusic.GUI.Views.SettingsView"
+             x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
     <ScrollViewer>
@@ -16,14 +16,16 @@
                     BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
                 <StackPanel Spacing="8">
                     <TextBlock Text="预测权重" FontWeight="SemiBold" Foreground="#111827"/>
-                    
+
                     <Grid ColumnDefinitions="120,Auto" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="8">
                         <TextBlock Text="声学权重:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
                         <TextBox Text="{Binding AcousticWeight}" Grid.Row="0" Grid.Column="1" Width="80"/>
-                        
+
                         <TextBlock Text="深度权重:" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
                         <TextBox Text="{Binding DeepWeight}" Grid.Row="1" Grid.Column="1" Width="80"/>
                     </Grid>
+
+                    <Button Content="保存权重" Command="{Binding SaveWeightsCommand}" Padding="12,6"/>
                 </StackPanel>
             </Border>
 
@@ -32,17 +34,19 @@
                     BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
                 <StackPanel Spacing="8">
                     <TextBlock Text="深度学习模型" FontWeight="SemiBold" Foreground="#111827"/>
-                    
+
                     <CheckBox Content="启用深度特征" IsChecked="{Binding EnableDeepFeatures}"/>
-                    
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                         <TextBox Text="{Binding OnnxModelPath}" PlaceholderText="VGGish 模型路径"
                                  Grid.Column="0"/>
                         <Button Content="加载模型" Command="{Binding LoadModelCommand}"
                                 Grid.Column="1" Padding="12,6"/>
+                        <Button Content="保存配置" Command="{Binding SaveOnnxSettingsCommand}"
+                                Grid.Column="2" Padding="12,6"/>
                     </Grid>
-                    
-                    <TextBlock Text="{Binding IsModelLoaded}"
+
+                    <TextBlock Text="{Binding IsModelLoaded, StringFormat='模型已加载: {0}'}"
                                Foreground="#6b7280" FontSize="14"/>
                 </StackPanel>
             </Border>
@@ -52,6 +56,8 @@
                     BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
                 <StackPanel Spacing="8">
                     <TextBlock Text="画像管理" FontWeight="SemiBold" Foreground="#111827"/>
+                    <TextBlock Text="重建画像将基于所有已标记喜欢的歌曲重新计算均值向量"
+                               Foreground="#6b7280" FontSize="14" TextWrapping="Wrap"/>
                     <Button Content="重建画像" Command="{Binding RebuildProfileCommand}"
                             Padding="12,6"/>
                 </StackPanel>

@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Core.Interfaces;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 
 /// <summary>
 /// 向量序列化接口，float[] 与 byte[] 双向转换

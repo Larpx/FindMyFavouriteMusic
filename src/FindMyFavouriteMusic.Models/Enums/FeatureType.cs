@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Models.Enums;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
 
 /// <summary>
 /// 特征类型

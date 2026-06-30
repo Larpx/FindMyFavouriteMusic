@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Core.Configuration;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 
 /// <summary>
 /// 预测权重配置

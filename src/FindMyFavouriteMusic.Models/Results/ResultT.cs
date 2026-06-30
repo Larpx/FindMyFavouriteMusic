@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Models.Results;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 
 /// <summary>
 /// 通用操作结果，包含返回值

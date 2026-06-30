@@ -6,5 +6,11 @@
     <LangVersion>preview</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!--
+      统一命名空间前缀：所有项目的代码命名空间均为
+      Larpx.PersonalTools.FindMyFavouriteMusic.{Layer}
+      RootNamespace 由项目名动态拼接，无需在每个 csproj 中重复声明
+    -->
+    <RootNamespace>Larpx.PersonalTools.$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
 </Project>

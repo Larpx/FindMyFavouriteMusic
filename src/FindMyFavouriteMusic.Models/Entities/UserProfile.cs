@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Models.Entities;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
 
 /// <summary>
 /// 用户画像实体，映射数据库 UserProfile 表

@@ -1,7 +1,7 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Avalonia.Data.Converters;
 
-namespace FindMyFavouriteMusic.GUI.Converters;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters;
 
 /// <summary>
 /// 布尔值转喜欢图标转换器

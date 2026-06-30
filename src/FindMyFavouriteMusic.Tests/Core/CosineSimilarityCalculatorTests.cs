@@ -1,7 +1,7 @@
-using FindMyFavouriteMusic.Core.Prediction;
-using FindMyFavouriteMusic.Models.Results;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Prediction;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 
-namespace FindMyFavouriteMusic.Tests.Core;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Core;
 
 public class CosineSimilarityCalculatorTests
 {

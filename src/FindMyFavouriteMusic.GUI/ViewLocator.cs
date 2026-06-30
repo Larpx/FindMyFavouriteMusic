@@ -1,10 +1,10 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using FindMyFavouriteMusic.GUI.ViewModels;
+using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels;
 
-namespace FindMyFavouriteMusic.GUI;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI;
 
 /// <summary>
 /// Given a view model, returns the corresponding view if possible.

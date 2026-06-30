@@ -1,4 +1,4 @@
-namespace FindMyFavouriteMusic.Models.Entities;
+﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
 
 /// <summary>
 /// 歌曲实体，映射数据库 Songs 表

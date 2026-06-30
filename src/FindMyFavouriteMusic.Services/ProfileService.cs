@@ -1,17 +1,24 @@
-using FindMyFavouriteMusic.Core.Interfaces;
-using FindMyFavouriteMusic.Models.Dtos;
-using FindMyFavouriteMusic.Models.Entities;
-using FindMyFavouriteMusic.Models.Results;
-using FindMyFavouriteMusic.Services.Database;
-using FindMyFavouriteMusic.Services.Interfaces;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace FindMyFavouriteMusic.Services;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services;
 
 /// <summary>
-/// 用户画像服务，负责画像构建与增量更新
+/// 用户画像服务，负责画像构建（全量重建 / 增量更新）。
 /// </summary>
+/// <remarks>
+/// 画像是用户"喜欢"歌曲特征向量的均值，代表了用户的音乐品味中心。
+/// <para>构建策略：</para>
+/// <para>1. 全量重建（<see cref="RebuildProfileAsync"/>）：遍历所有喜欢歌曲，求各维度均值；</para>
+/// <para>2. 增量更新（<see cref="UpdateProfileIncrementalAsync"/>）：使用 Welford 在线算法，O(1) 更新均值。</para>
+/// <para>触发时机：标记喜欢 → 增量更新；取消喜欢 → 全量重建（增量更新无法"减去"一首歌）。</para>
+/// </remarks>
 public class ProfileService : IProfileService
 {
     private readonly ISongRepository _songRepository;
@@ -30,6 +37,8 @@ public class ProfileService : IProfileService
         _profileRepository = profileRepository;
         _vectorSerializer = vectorSerializer;
         _logger = logger;
+        // dbOptions 注入保证配置链完整（未来可用于多画像库切换）
+        _ = dbOptions;
     }
 
     /// <inheritdoc/>
@@ -58,7 +67,13 @@ public class ProfileService : IProfileService
         });
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// 全量重建画像：遍历所有标记喜欢的歌曲，计算特征向量各维度的均值。
+    /// </summary>
+    /// <remarks>
+    /// 算法：mean[i] = Σ vector[i] / N，其中 N 为喜欢歌曲数。
+    /// <para>同时计算声学均值与深度均值（若存在深度特征）。</para>
+    /// </remarks>
     public async Task<Result> RebuildProfileAsync()
     {
         var likedResult = await _songRepository.GetLikedSongsAsync();
@@ -74,7 +89,7 @@ public class ProfileService : IProfileService
             return Result.Failure("没有喜欢的歌曲");
         }
 
-        // 反序列化所有向量
+        // 反序列化所有喜欢歌曲的特征向量
         var acousticVectors = new List<float[]>();
         var deepVectors = new List<float[]>();
 
@@ -96,7 +111,7 @@ public class ProfileService : IProfileService
             return Result.Failure("没有可用的特征向量");
         }
 
-        // 计算均值向量
+        // 计算各维度均值
         var acousticMean = ComputeMean(acousticVectors);
         var deepMean = deepVectors.Count > 0 ? ComputeMean(deepVectors) : null;
 
@@ -113,7 +128,14 @@ public class ProfileService : IProfileService
         return await _profileRepository.SaveAsync(userProfile);
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// 增量更新画像：使用 Welford 在线算法，O(1) 时间更新均值向量。
+    /// </summary>
+    /// <remarks>
+    /// Welford 公式：new_mean = old_mean + (new_vector - old_mean) / new_count
+    /// <para>相比全量重建（O(N)），增量更新只需 O(1)，适合频繁标记场景。</para>
+    /// <para>注意：仓储仅持久化 BLOB，因此需先反序列化 BLOB 得到 float[] 再参与计算。</para>
+    /// </remarks>
     public async Task<Result> UpdateProfileIncrementalAsync(int newLikedSongId)
     {
         var profileResult = await _profileRepository.GetAsync();
@@ -131,29 +153,37 @@ public class ProfileService : IProfileService
         var song = songResult.Value!;
         var profile = profileResult.Value;
 
-        // 如果没有画像，执行全量重建
-        if (profile?.AcousticMeanVector is null)
+        // 若画像不存在（BLOB 为空），回退到全量重建
+        if (profile?.AcousticMeanVectorBlob is null)
         {
             return await RebuildProfileAsync();
         }
 
-        // 使用 Welford 在线算法增量更新
-        var currentAcoustic = profile.AcousticMeanVector;
+        // 从 BLOB 反序列化得到当前均值向量（仓储不填充 float[] 字段）
+        var currentAcoustic = _vectorSerializer.Deserialize(profile.AcousticMeanVectorBlob);
+        float[]? currentDeep = profile.DeepMeanVectorBlob is not null
+            ? _vectorSerializer.Deserialize(profile.DeepMeanVectorBlob)
+            : null;
+
+        // 当前喜欢歌曲数（增量更新前的计数）
         var likedResult = await _songRepository.GetLikedSongsAsync();
         var count = likedResult.IsSuccess && likedResult.Value is not null ? likedResult.Value.Count : 1;
+        // 注意：GetLikedSongsAsync 返回的是包含新加入歌曲后的列表，故 count 已为 +1 后的值
+        // Welford 公式中的 newCount 应为 count，currentCount 应为 count - 1
+        var previousCount = Math.Max(1, count - 1);
 
         float[]? updatedAcoustic = null;
         if (song.AcousticVectorBlob is not null)
         {
             var newVector = _vectorSerializer.Deserialize(song.AcousticVectorBlob);
-            updatedAcoustic = IncrementalMean(currentAcoustic, newVector, count);
+            updatedAcoustic = IncrementalMean(currentAcoustic, newVector, previousCount);
         }
 
         float[]? updatedDeep = null;
-        if (profile.DeepMeanVector is not null && song.DeepVectorBlob is not null)
+        if (currentDeep is not null && song.DeepVectorBlob is not null)
         {
             var newDeepVector = _vectorSerializer.Deserialize(song.DeepVectorBlob);
-            updatedDeep = IncrementalMean(profile.DeepMeanVector, newDeepVector, count);
+            updatedDeep = IncrementalMean(currentDeep, newDeepVector, previousCount);
         }
 
         var updatedProfile = new UserProfile
@@ -163,7 +193,7 @@ public class ProfileService : IProfileService
             AcousticMeanVectorBlob = updatedAcoustic is not null
                 ? _vectorSerializer.Serialize(updatedAcoustic)
                 : profile.AcousticMeanVectorBlob,
-            DeepMeanVector = updatedDeep ?? profile.DeepMeanVector,
+            DeepMeanVector = updatedDeep ?? currentDeep,
             DeepMeanVectorBlob = updatedDeep is not null
                 ? _vectorSerializer.Serialize(updatedDeep)
                 : profile.DeepMeanVectorBlob,
@@ -180,7 +210,10 @@ public class ProfileService : IProfileService
         return result.IsSuccess && result.Value?.AcousticMeanVectorBlob is not null;
     }
 
-    /// <summary>计算向量均值</summary>
+    /// <summary>
+    /// 计算向量集合的各维度均值。
+    /// <para>mean[i] = Σ vector_k[i] / N，k=1..N</para>
+    /// </summary>
     private static float[] ComputeMean(IReadOnlyList<float[]> vectors)
     {
         var dimension = vectors[0].Length;
@@ -202,7 +235,14 @@ public class ProfileService : IProfileService
         return mean;
     }
 
-    /// <summary>增量更新均值（Welford 算法）</summary>
+    /// <summary>
+    /// Welford 在线均值更新算法。
+    /// <para>公式：new_mean = old_mean + (new_value - old_mean) / new_count</para>
+    /// <para>优势：无需保存历史所有样本，仅 O(1) 时间与 O(d) 空间。</para>
+    /// </summary>
+    /// <param name="currentMean">当前均值向量</param>
+    /// <param name="newVector">新加入的样本向量</param>
+    /// <param name="currentCount">加入前的样本数（即旧均值基于的样本数）</param>
     private static float[] IncrementalMean(float[] currentMean, float[] newVector, int currentCount)
     {
         var result = new float[currentMean.Length];

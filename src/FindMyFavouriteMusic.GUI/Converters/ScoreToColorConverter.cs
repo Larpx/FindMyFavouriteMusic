@@ -1,8 +1,8 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 
-namespace FindMyFavouriteMusic.GUI.Converters;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters;
 
 /// <summary>
 /// 分数转颜色转换器，0-30 红色，30-70 黄色，70-100 绿色

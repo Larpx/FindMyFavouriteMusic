@@ -1,6 +1,6 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 
-namespace FindMyFavouriteMusic.GUI.Views;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views;
 
 public partial class SettingsView : UserControl
 {

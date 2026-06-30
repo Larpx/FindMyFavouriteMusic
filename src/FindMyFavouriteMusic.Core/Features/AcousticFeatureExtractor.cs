@@ -1,32 +1,41 @@
-using FindMyFavouriteMusic.Core.Configuration;
-using FindMyFavouriteMusic.Core.Interfaces;
-using FindMyFavouriteMusic.Models.Results;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NWaves.FeatureExtractors;
-using NWaves.FeatureExtractors.Base;
 using NWaves.FeatureExtractors.Multi;
 using NWaves.FeatureExtractors.Options;
 
-namespace FindMyFavouriteMusic.Core.Features;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
 
 /// <summary>
-/// 基于 NWaves 的声学特征提取器
-/// 输出维度: MFCC(26) + 频谱质心(2) + 色度(24) = 52 维
+/// 基于 NWaves 的声学特征提取器。
 /// </summary>
+/// <remarks>
+/// 输出维度构成：MFCC(13 均值 + 13 方差) + 频谱质心(1 均值 + 1 方差) + 色度(12 均值 + 12 方差) = 52 维。
+/// <para>处理流程：</para>
+/// <para>1. 使用 NWaves 的 MfccExtractor 提取帧级 MFCC；</para>
+/// <para>2. 使用 SpectralFeaturesExtractor 提取帧级频谱质心；</para>
+/// <para>3. 使用 ChromaExtractor 提取帧级色度特征；</para>
+/// <para>4. 通过 IFeatureAggregator 将帧级特征聚合为（均值 + 方差）向量；</para>
+/// <para>5. 拼接为 52 维最终向量；</para>
+/// <para>6. 若启用归一化，使用 Z-Score 处理。</para>
+/// </remarks>
 public class AcousticFeatureExtractor : IAcousticFeatureExtractor
 {
-    private readonly FeatureExtractionOptions _options;
-    private readonly IFeatureAggregator _aggregator;
-    private readonly ILogger<AcousticFeatureExtractor> _logger;
-
     /// <summary>
+    /// 最终特征向量维度：
     /// MFCC: 13 均值 + 13 方差 = 26
     /// 频谱质心: 1 均值 + 1 方差 = 2
     /// 色度: 12 均值 + 12 方差 = 24
-    /// 总计 = 52
+    /// 合计 = 52
     /// </summary>
     private const int TotalDimension = 52;
+
+    private readonly FeatureExtractionOptions _options;
+    private readonly IFeatureAggregator _aggregator;
+    private readonly ILogger<AcousticFeatureExtractor> _logger;
 
     public AcousticFeatureExtractor(
         IOptions<FeatureExtractionOptions> options,
@@ -55,7 +64,7 @@ public class AcousticFeatureExtractor : IAcousticFeatureExtractor
         {
             var mfccCount = _options.MfccCoefficientCount;
 
-            // 1. 提取 MFCC
+            // 1. 提取 MFCC（梅尔频率倒谱系数）：模拟人耳对频率的非线性感知
             var mfccExtractor = new MfccExtractor(new MfccOptions
             {
                 SamplingRate = sampleRate,
@@ -67,7 +76,7 @@ public class AcousticFeatureExtractor : IAcousticFeatureExtractor
             });
             var mfccFrames = mfccExtractor.ComputeFrom(samples).ToArray();
 
-            // 2. 提取频谱特征（含频谱质心）
+            // 2. 提取频谱质心：衡量声音"亮度"的中心频率
             var spectralExtractor = new SpectralFeaturesExtractor(new MultiFeatureOptions
             {
                 SamplingRate = sampleRate,
@@ -78,7 +87,7 @@ public class AcousticFeatureExtractor : IAcousticFeatureExtractor
             });
             var spectralFrames = spectralExtractor.ComputeFrom(samples).ToArray();
 
-            // 3. 提取色度特征
+            // 3. 提取色度特征：12 个音高类的能量分布，反映音调/和声内容
             var chromaExtractor = new ChromaExtractor(new ChromaOptions
             {
                 SamplingRate = sampleRate,
@@ -88,12 +97,12 @@ public class AcousticFeatureExtractor : IAcousticFeatureExtractor
             });
             var chromaFrames = chromaExtractor.ComputeFrom(samples).ToArray();
 
-            // 4. 聚合各特征
+            // 4. 聚合各特征（每帧特征 → 单个均值+方差向量）
             var mfccVector = _aggregator.Aggregate(mfccFrames);
             var spectralVector = _aggregator.Aggregate(spectralFrames);
             var chromaVector = _aggregator.Aggregate(chromaFrames);
 
-            // 5. 拼接为最终向量
+            // 5. 拼接为最终 52 维向量
             var result = new float[TotalDimension];
             var offset = 0;
 
@@ -104,6 +113,12 @@ public class AcousticFeatureExtractor : IAcousticFeatureExtractor
             offset += 2;
 
             Array.Copy(chromaVector, 0, result, offset, Math.Min(chromaVector.Length, 24));
+
+            // 6. 可选：Z-Score 归一化（默认关闭，见 FeatureExtractionOptions.EnableNormalization）
+            if (_options.EnableNormalization)
+            {
+                result = FeatureNormalizer.Normalize(result);
+            }
 
             return Result<float[]>.Success(result);
         }

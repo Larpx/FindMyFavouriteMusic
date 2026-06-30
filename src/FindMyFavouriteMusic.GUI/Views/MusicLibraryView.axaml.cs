@@ -1,8 +1,8 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Platform.Storage;
-using FindMyFavouriteMusic.GUI.ViewModels;
+using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels;
 
-namespace FindMyFavouriteMusic.GUI.Views;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views;
 
 /// <summary>
 /// 音乐库视图，处理文件对话框交互

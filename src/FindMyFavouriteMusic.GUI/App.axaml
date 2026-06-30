@@ -1,7 +1,7 @@
-<Application xmlns="https://github.com/avaloniaui"
+﻿<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="FindMyFavouriteMusic.GUI.App"
-             xmlns:local="using:FindMyFavouriteMusic.GUI"
+             x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.App"
+             xmlns:local="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI"
              RequestedThemeVariant="Default">
 
     <Application.DataTemplates>

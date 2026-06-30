@@ -1,7 +1,7 @@
-using FindMyFavouriteMusic.Models.Entities;
-using FindMyFavouriteMusic.Models.Results;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 
-namespace FindMyFavouriteMusic.Services.Interfaces;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 
 /// <summary>
 /// 歌曲仓储接口

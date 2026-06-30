@@ -1,6 +1,6 @@
-using FindMyFavouriteMusic.Core.Prediction;
+﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Prediction;
 
-namespace FindMyFavouriteMusic.Tests.Core;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Core;
 
 public class VectorSerializerTests
 {
