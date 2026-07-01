@@ -1,51 +1,78 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
              xmlns:dto="using:Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos"
              xmlns:cvt="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
+             mc:Ignorable="d" d:DesignWidth="750" d:DesignHeight="600"
              x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.MusicLibraryView"
-             x:DataType="vm:MusicLibraryViewModel">
+             x:DataType="vm:MusicLibraryViewModel"
+             Background="{StaticResource BrushBgBase}">
 
     <UserControl.Resources>
         <cvt:BoolToLikeIconConverter x:Key="BoolToLikeIconConverter"/>
     </UserControl.Resources>
 
-    <DockPanel>
-        <!-- 工具栏 -->
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
-            <Button Content="扫描目录" Command="{Binding ScanDirectoryCommand}"
-                    IsEnabled="{Binding !IsScanning}" Padding="12,6"/>
-            <Button Content="刷新列表" Command="{Binding LoadAllSongsCommand}"
-                    Padding="12,6"/>
-            <ProgressBar Value="{Binding ScanProgress}" Width="200" Minimum="0" Maximum="100"
-                         IsVisible="{Binding IsScanning}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
-                       Foreground="#6b7280" FontSize="14"/>
+    <DockPanel Margin="24,20,24,20">
+        <!-- 顶部操作栏 -->
+        <StackPanel DockPanel.Dock="Top" Spacing="12" Margin="0,0,0,20">
+            <!-- 页面标题 -->
+            <TextBlock Text="音乐库" Classes="page-title"/>
+
+            <!-- 操作按钮行 -->
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                <Button Classes="accent-btn"
+                        Content="扫描目录"
+                        Command="{Binding ScanDirectoryCommand}"
+                        IsEnabled="{Binding !IsScanning}"/>
+
+                <Button Classes="outline-btn"
+                        Content="刷新列表"
+                        Command="{Binding LoadAllSongsCommand}"
+                        Grid.Column="1"/>
+
+                <!-- 进度条（扫描中显示） -->
+                <ProgressBar Classes="sci-progress"
+                             Value="{Binding ScanProgress}" Minimum="0" Maximum="100"
+                             IsVisible="{Binding IsScanning}"
+                             Grid.Column="2"
+                             VerticalAlignment="Center"
+                             Margin="12,0,0,0"/>
+
+                <!-- 状态消息 -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           Classes="label-text"
+                           Grid.Column="3"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"/>
+            </Grid>
         </StackPanel>
 
         <!-- 歌曲列表 -->
-        <DataGrid ItemsSource="{Binding Songs}" AutoGenerateColumns="False"
-                  CanUserResizeColumns="True" IsReadOnly="True"
-                  SelectionMode="Single" GridLinesVisibility="Horizontal">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="*"/>
-                <DataGridTextColumn Header="艺术家" Binding="{Binding Artist}" Width="150"/>
-                <DataGridTextColumn Header="文件名" Binding="{Binding FilePath}" Width="200"/>
-                <DataGridTemplateColumn Header="喜欢" Width="80">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate x:DataType="dto:SongDto">
-                            <Button Content="{Binding IsLiked, Converter={StaticResource BoolToLikeIconConverter}}"
-                                    Command="{Binding $parent[DataGrid].((vm:MusicLibraryViewModel)DataContext).ToggleLikeCommand}"
-                                    CommandParameter="{Binding}"
-                                    Padding="4,2" FontSize="16"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+        <Border Classes="card" Padding="0">
+            <DataGrid ItemsSource="{Binding Songs}" AutoGenerateColumns="False"
+                      CanUserResizeColumns="True" IsReadOnly="True"
+                      SelectionMode="Single" GridLinesVisibility="Horizontal"
+                      BorderThickness="0" CornerRadius="8">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="*"/>
+                    <DataGridTextColumn Header="艺术家" Binding="{Binding Artist}" Width="150"/>
+                    <DataGridTextColumn Header="文件名" Binding="{Binding FilePath}" Width="200"/>
+                    <DataGridTemplateColumn Header="喜欢" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="dto:SongDto">
+                                <Button Content="{Binding IsLiked, Converter={StaticResource BoolToLikeIconConverter}}"
+                                        Command="{Binding $parent[DataGrid].((vm:MusicLibraryViewModel)DataContext).ToggleLikeCommand}"
+                                        CommandParameter="{Binding}"
+                                        Classes="ghost-btn"
+                                        FontSize="16" Padding="4,2"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
     </DockPanel>
 
 </UserControl>

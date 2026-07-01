@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views"
+        x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.DialogWindow"
+        x:DataType="vm:DialogWindow"
+        Width="420" MinHeight="200" SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        WindowDecorations="None"
+        Background="Transparent"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <Border Background="{StaticResource ColorBgSurface}"
+            BorderBrush="{Binding AccentBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="0">
+        <StackPanel Spacing="0">
+
+            <!-- 顶部色条 -->
+            <Border Background="{Binding AccentBrush}"
+                    Height="3"
+                    CornerRadius="8,8,0,0"/>
+
+            <!-- 内容区域 -->
+            <StackPanel Margin="24,20,24,20" Spacing="16">
+
+                <!-- 图标 + 标题行 -->
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <!-- 状态图标 -->
+                    <Border Background="{Binding AccentBrush}"
+                            Opacity="0.12"
+                            CornerRadius="20"
+                            Width="40" Height="40"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding IconText}"
+                                   FontSize="20"
+                                   Foreground="{Binding AccentBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="{StaticResource TextMd}"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource BrushTextPrimary}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- 消息内容 -->
+                <TextBlock Text="{Binding Message}"
+                           FontSize="{StaticResource TextBase}"
+                           Foreground="{StaticResource BrushTextSecondary}"
+                           TextWrapping="Wrap"
+                           LineHeight="22"/>
+
+                <!-- 确认按钮 -->
+                <Button Content="确定"
+                        Classes="accent-btn"
+                        Command="{Binding CloseCommand}"
+                        HorizontalAlignment="Right"
+                        Margin="0,4,0,0"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+</Window>

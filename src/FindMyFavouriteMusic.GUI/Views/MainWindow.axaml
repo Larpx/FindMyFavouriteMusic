@@ -1,38 +1,93 @@
-﻿<Window xmlns="https://github.com/avaloniaui"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="650"
         x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="音乐品味预测系统"
-        Width="900" Height="600"
-        MinWidth="800" MinHeight="500">
+        Width="1000" Height="650"
+        MinWidth="850" MinHeight="550"
+        Background="{StaticResource BrushBgBase}"
+        ExtendClientAreaToDecorationsHint="True"
+        WindowStartupLocation="CenterScreen">
 
     <DockPanel>
-        <!-- 导航栏 -->
-        <Border DockPanel.Dock="Left" Background="#f3f4f6" Width="180" Padding="8">
-            <StackPanel Spacing="4">
-                <TextBlock Text="音乐品味预测" FontSize="16" FontWeight="SemiBold"
-                           Margin="0,0,0,16" Foreground="#111827"/>
-                
-                <Button Content="音乐库" Command="{Binding NavigateToCommand}"
-                        CommandParameter="Library" Padding="12,8"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
-                
-                <Button Content="预测" Command="{Binding NavigateToCommand}"
-                        CommandParameter="Prediction" Padding="12,8"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
-                
-                <Button Content="设置" Command="{Binding NavigateToCommand}"
-                        CommandParameter="Settings" Padding="12,8"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
-            </StackPanel>
+        <!-- 侧边栏导航 -->
+        <Border DockPanel.Dock="Left"
+                Background="{StaticResource ColorBgSurface}"
+                Width="200"
+                Padding="12,48,12,16"
+                BorderBrush="{StaticResource BrushBorder}"
+                BorderThickness="0,0,1,0">
+            <DockPanel>
+                <!-- 底部版本号 -->
+                <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,16,0,0">
+                    <Border Height="1" Background="{StaticResource BrushBorder}"/>
+                    <TextBlock Text="v1.0"
+                               FontSize="{StaticResource TextXs}"
+                               Foreground="{StaticResource BrushTextMuted}"
+                               Margin="4,4,0,0"/>
+                </StackPanel>
+
+                <!-- 导航列表 -->
+                <StackPanel Spacing="2">
+                    <!-- 品牌标识 -->
+                    <StackPanel Margin="4,0,4,24" Spacing="2">
+                        <TextBlock Text="FIND MY"
+                                   FontSize="{StaticResource TextXs}"
+                                   FontWeight="Medium"
+                                   Foreground="{StaticResource BrushPrimary}"
+                                   LetterSpacing="3"/>
+                        <TextBlock Text="FAVOURITE MUSIC"
+                                   FontSize="{StaticResource TextSm}"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource BrushTextPrimary}"
+                                   LetterSpacing="2"/>
+                    </StackPanel>
+
+                    <!-- 音乐库 -->
+                    <Button x:Name="NavLibrary" Classes="nav-item active"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Library">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Path Data="M9 18V5l12-2v13M9 18c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zM21 16c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"
+                                  Width="20" Height="20" Stretch="Uniform"
+                                  VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="音乐库" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+
+                    <!-- 预测 -->
+                    <Button x:Name="NavPrediction" Classes="nav-item"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Prediction">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Path Data="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
+                                  Width="20" Height="20" Stretch="Uniform"
+                                  VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="预测" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+
+                    <!-- 设置 -->
+                    <Button x:Name="NavSettings" Classes="nav-item"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Settings">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Path Data="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"
+                                  Width="20" Height="20" Stretch="Uniform"
+                                  VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="设置" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <!-- 内容区域 -->
-        <ContentControl Content="{Binding CurrentPage}" Margin="16"/>
+        <ContentControl Content="{Binding CurrentPage}" Margin="0"/>
     </DockPanel>
 
 </Window>

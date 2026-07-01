@@ -1,6 +1,7 @@
-﻿using Avalonia.Controls;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels;
 
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views;
@@ -42,7 +43,7 @@ public partial class PredictionView : UserControl
             [
                 new FilePickerFileType("音频文件")
                 {
-                    Patterns = ["*.mp3", "*.wav", "*.flac", "*.m4a", "*.ogg", "*.wma"]
+                    Patterns = ["*.mp3", "*.wav", "*.flac", "*.ogg", "*.oga", "*.m4a"]
                 },
                 new FilePickerFileType("所有文件")
                 {
@@ -54,16 +55,14 @@ public partial class PredictionView : UserControl
         return files.FirstOrDefault()?.TryGetLocalPath();
     }
 
-    /// <summary>拖拽进入：高亮显示放置区</summary>
+    /// <summary>拖拽进入：电光青高亮显示放置区</summary>
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
-        // 仅当拖拽数据包含文件时才显示复制效果与高亮
         if (!e.DataTransfer.Contains(DataFormat.File)) return;
         e.DragEffects = DragDropEffects.Copy;
-        // 视觉高亮：边框变粗
         if (DropZone is Border border)
         {
-            border.BorderBrush = Avalonia.Media.Brushes.Indigo;
+            border.BorderBrush = Avalonia.Media.Brushes.Cyan;
             border.BorderThickness = new Avalonia.Thickness(2);
         }
     }
@@ -74,7 +73,7 @@ public partial class PredictionView : UserControl
         ResetDropZoneAppearance();
     }
 
-    /// <summary>放下文件：解析路径并填充到 ViewModel</summary>
+    /// <summary>放下文件：校验扩展名后解析路径并填充到 ViewModel</summary>
     private void OnDrop(object? sender, DragEventArgs e)
     {
         ResetDropZoneAppearance();
@@ -89,6 +88,13 @@ public partial class PredictionView : UserControl
 
         var path = file.TryGetLocalPath();
         if (string.IsNullOrWhiteSpace(path)) return;
+
+        // 校验文件扩展名是否为支持的音频格式，避免用户拖入非音频文件后预测才报错
+        if (!AudioFormatDetector.IsSupportedExtension(path))
+        {
+            vm.StatusMessage = $"不支持的文件格式: {Path.GetExtension(path)}";
+            return;
+        }
 
         vm.SelectedFilePath = path;
         e.DragEffects = DragDropEffects.Copy;

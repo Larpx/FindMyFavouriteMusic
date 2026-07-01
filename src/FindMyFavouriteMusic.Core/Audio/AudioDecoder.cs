@@ -1,9 +1,11 @@
-﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NAudio.Flac;
+using NAudio.Vorbis;
 using NAudio.Wave;
 
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
@@ -12,7 +14,7 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 /// 基于 NAudio 的音频解码器。
 /// <para>解码流程：</para>
 /// <para>1. 通过文件扩展名识别格式；</para>
-/// <para>2. 选择对应的 Reader：WAV 使用 WaveFileReader，MP3 使用 Mp3FileReader，FLAC/M4A 使用 MediaFoundationReader（仅 Windows）；</para>
+/// <para>2. 选择对应的 Reader：WAV 使用 WaveFileReader，MP3 使用 Mp3FileReader，FLAC 使用 FlacReader（纯 .NET 实现，跨平台），OGG 使用 VorbisWaveReader（纯 .NET 实现，跨平台），M4A 使用 MediaFoundationReader（仅 Windows）；</para>
 /// <para>3. 读取 PCM 字节并按位深度转换为 32 位浮点采样；</para>
 /// <para>4. 通过 <see cref="AudioPreprocessor"/> 完成多声道合并与重采样。</para>
 /// </summary>
@@ -34,8 +36,11 @@ public class AudioDecoder : IAudioDecoder
     {
         AudioFormat.Wav => true,
         AudioFormat.Mp3 => true,
-        // FLAC/M4A 依赖 Windows Media Foundation，仅在 Windows 平台可用
-        AudioFormat.Flac => OperatingSystem.IsWindows(),
+        // FLAC 使用纯 .NET 的 FlacReader，跨平台支持
+        AudioFormat.Flac => true,
+        // OGG 使用纯 .NET 的 VorbisWaveReader，跨平台支持
+        AudioFormat.Ogg => true,
+        // M4A 依赖 Windows Media Foundation，仅在 Windows 平台可用
         AudioFormat.M4a => OperatingSystem.IsWindows(),
         _ => false
     };
@@ -123,13 +128,16 @@ public class AudioDecoder : IAudioDecoder
 
     /// <summary>
     /// 根据音频格式创建对应的 NAudio Reader。
-    /// FLAC/M4A 在 Windows 上通过 MediaFoundationReader 解码（依赖系统解码器）。
+    /// FLAC 使用 FlacReader（纯 .NET 实现，不依赖系统解码器）；
+    /// OGG 使用 VorbisWaveReader（纯 .NET 实现，不依赖系统解码器）；
+    /// M4A 在 Windows 上通过 MediaFoundationReader 解码（依赖系统解码器）。
     /// </summary>
     private static WaveStream CreateReader(string filePath, AudioFormat format) => format switch
     {
         AudioFormat.Wav => new WaveFileReader(filePath),
         AudioFormat.Mp3 => new Mp3FileReader(filePath),
-        AudioFormat.Flac when OperatingSystem.IsWindows() => new MediaFoundationReader(filePath),
+        AudioFormat.Flac => new FlacReader(filePath),
+        AudioFormat.Ogg => new VorbisWaveReader(filePath),
         AudioFormat.M4a when OperatingSystem.IsWindows() => new MediaFoundationReader(filePath),
         _ => throw new NotSupportedException($"不支持的格式: {format}")
     };

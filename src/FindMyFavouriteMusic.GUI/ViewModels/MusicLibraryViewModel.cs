@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,8 @@ public partial class MusicLibraryViewModel : ViewModelBase
     private readonly IMusicLibraryService _libraryService;
     // 日志记录器：用于记录异常和关键操作，便于问题排查
     private readonly ILogger<MusicLibraryViewModel> _logger;
+    // 对话框服务：用于向用户弹出操作反馈
+    private readonly IDialogService _dialogService;
 
     /// <summary>
     /// 文件夹选择交互回调，由 View 层（Code-behind）在运行时设置。
@@ -44,12 +47,15 @@ public partial class MusicLibraryViewModel : ViewModelBase
     /// </summary>
     /// <param name="libraryService">音乐库业务服务</param>
     /// <param name="logger">日志记录器</param>
+    /// <param name="dialogService">对话框服务</param>
     public MusicLibraryViewModel(
         IMusicLibraryService libraryService,
-        ILogger<MusicLibraryViewModel> logger)
+        ILogger<MusicLibraryViewModel> logger,
+        IDialogService dialogService)
     {
         _libraryService = libraryService;
         _logger = logger;
+        _dialogService = dialogService;
     }
 
     /// <summary>
@@ -146,13 +152,16 @@ public partial class MusicLibraryViewModel : ViewModelBase
             if (result.IsSuccess)
             {
                 // 整体替换集合以触发属性变更通知，UI 会重新渲染列表
-                Songs = new ObservableCollection<SongDto>(result.Value ?? []);
-                StatusMessage = $"扫描完成，共 {(result.Value ?? []).Count} 首歌曲";
+                var songList = result.Value ?? [];
+                Songs = new ObservableCollection<SongDto>(songList);
+                StatusMessage = $"扫描完成，共 {songList.Count} 首歌曲";
+                await _dialogService.ShowSuccessAsync("扫描完成", $"共扫描到 {songList.Count} 首歌曲");
             }
             else
             {
                 // 服务层返回失败（如目录不存在），将错误信息反馈给用户
                 StatusMessage = $"扫描失败: {result.Error}";
+                await _dialogService.ShowErrorAsync("扫描失败", result.Error ?? "未知错误");
             }
         }
         catch (Exception ex)
@@ -160,6 +169,7 @@ public partial class MusicLibraryViewModel : ViewModelBase
             // 捕获未预期异常并记录日志，避免应用崩溃
             _logger.LogError(ex, "扫描目录失败");
             StatusMessage = $"扫描出错: {ex.Message}";
+            await _dialogService.ShowErrorAsync("扫描出错", ex.Message);
         }
         finally
         {
@@ -186,28 +196,40 @@ public partial class MusicLibraryViewModel : ViewModelBase
     [RelayCommand]
     private async Task ToggleLikeAsync(SongDto song)
     {
-        // 计算目标状态：当前喜欢的取消喜欢，反之亦然
-        var newLikeStatus = !song.IsLiked;
-        // 先调用服务持久化，确保数据一致性
-        var result = await _libraryService.ToggleLikeAsync(song.Id, newLikeStatus);
+        if (song is null) return;
 
-        if (result.IsSuccess)
+        try
         {
-            // 服务成功后再更新本地数据
-            song.IsLiked = newLikeStatus;
-            // 通过索引器重新赋值触发 ObservableCollection 的 NotifyCollectionChangedAction.Replace 通知，
-            // 从而让 UI 重新渲染该项（如喜欢图标变化）
-            var index = Songs.IndexOf(song);
-            if (index >= 0)
+            // 计算目标状态：当前喜欢的取消喜欢，反之亦然
+            var newLikeStatus = !song.IsLiked;
+            // 先调用服务持久化，确保数据一致性
+            var result = await _libraryService.ToggleLikeAsync(song.Id, newLikeStatus);
+
+            if (result.IsSuccess)
             {
-                Songs[index] = song;
+                // 服务成功后再更新本地数据
+                song.IsLiked = newLikeStatus;
+                // 通过索引器重新赋值触发 ObservableCollection 的 NotifyCollectionChangedAction.Replace 通知，
+                // 从而让 UI 重新渲染该项（如喜欢图标变化）
+                var index = Songs.IndexOf(song);
+                if (index >= 0)
+                {
+                    Songs[index] = song;
+                }
+                StatusMessage = newLikeStatus ? $"已喜欢: {song.Title}" : $"已取消喜欢: {song.Title}";
             }
-            StatusMessage = newLikeStatus ? $"已喜欢: {song.Title}" : $"已取消喜欢: {song.Title}";
+            else
+            {
+                // 服务失败时不修改本地状态，避免 UI 与持久化数据不一致
+                StatusMessage = $"操作失败: {result.Error}";
+                await _dialogService.ShowErrorAsync("操作失败", result.Error ?? "未知错误");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            // 服务失败时不修改本地状态，避免 UI 与持久化数据不一致
-            StatusMessage = $"操作失败: {result.Error}";
+            _logger.LogError(ex, "切换喜欢状态失败: {SongId}", song.Id);
+            StatusMessage = $"操作出错: {ex.Message}";
+            await _dialogService.ShowErrorAsync("操作出错", ex.Message);
         }
     }
 
@@ -220,16 +242,26 @@ public partial class MusicLibraryViewModel : ViewModelBase
     [RelayCommand]
     private async Task LoadAllSongsAsync()
     {
-        var result = await _libraryService.GetAllSongsAsync();
-        if (result.IsSuccess)
+        try
         {
-            // 整体替换集合以触发 UI 更新
-            Songs = new ObservableCollection<SongDto>(result.Value ?? []);
-            StatusMessage = $"已加载 {(result.Value ?? []).Count} 首歌曲";
+            var result = await _libraryService.GetAllSongsAsync();
+            if (result.IsSuccess)
+            {
+                // 整体替换集合以触发 UI 更新
+                Songs = new ObservableCollection<SongDto>(result.Value ?? []);
+                StatusMessage = $"已加载 {(result.Value ?? []).Count} 首歌曲";
+            }
+            else
+            {
+                StatusMessage = $"加载失败: {result.Error}";
+                await _dialogService.ShowErrorAsync("加载失败", result.Error ?? "未知错误");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            StatusMessage = $"加载失败: {result.Error}";
+            _logger.LogError(ex, "加载歌曲列表失败");
+            StatusMessage = $"加载出错: {ex.Message}";
+            await _dialogService.ShowErrorAsync("加载出错", ex.Message);
         }
     }
 }

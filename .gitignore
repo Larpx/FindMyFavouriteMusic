@@ -360,3 +360,11 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+docs/软件著作权申请资料/*
+
+# ONNX 模型文件（超过 Gitee 100MB 单文件限制，不纳入版本控制）
+# 模型文件请通过以下方式获取：
+# 1. VGGish: https://github.com/tensorflow/models/tree/master/research/audioset/vggish
+# 2. MERT-v1-95M: https://huggingface.co/m-a-p/MERT-v1-95M
+# 转换为 ONNX 后放置到 Models/ 目录
+Models/

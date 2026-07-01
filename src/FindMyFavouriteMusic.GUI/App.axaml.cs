@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
@@ -6,6 +6,7 @@ using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Prediction;
+using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services;
@@ -82,7 +83,7 @@ public partial class App : Application
                 // Core 层：音频解码、特征提取、相似度计算
                 services.AddSingleton<IAudioDecoder, AudioDecoder>();
                 services.AddSingleton<IAcousticFeatureExtractor, AcousticFeatureExtractor>();
-                services.AddSingleton<IDeepFeatureExtractor, DeepFeatureExtractor>();
+                services.AddSingleton<IDeepFeatureExtractor, DeepFeatureExtractorFactory>();
                 services.AddSingleton<IFeatureAggregator, FeatureAggregator>();
                 services.AddSingleton<ISimilarityCalculator, CosineSimilarityCalculator>();
                 services.AddSingleton<IVectorSerializer, VectorSerializer>();
@@ -108,6 +109,9 @@ public partial class App : Application
                 services.AddTransient<MusicLibraryViewModel>();
                 services.AddTransient<PredictionViewModel>();
                 services.AddTransient<SettingsViewModel>();
+
+                // GUI 服务
+                services.AddSingleton<IDialogService, DialogService>();
             })
             .Build();
     }

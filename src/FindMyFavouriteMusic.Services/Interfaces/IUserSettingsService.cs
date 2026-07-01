@@ -1,4 +1,4 @@
-﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 
@@ -15,6 +15,8 @@ public interface IUserSettingsService
 
     /// <summary>保存 ONNX 模型配置</summary>
     /// <param name="enableDeepFeatures">是否启用深度特征</param>
+    /// <param name="modelType">模型类型（VGGish 或 MERT）</param>
     /// <param name="vggishModelPath">VGGish 模型文件路径，可为 null</param>
-    Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string? vggishModelPath);
+    /// <param name="mertModelPath">MERT 模型文件路径，可为 null</param>
+    Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath);
 }

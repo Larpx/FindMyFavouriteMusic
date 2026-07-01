@@ -1,4 +1,4 @@
-﻿using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
 
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 
@@ -13,6 +13,8 @@ public static class AudioFormatDetector
         [".wave"] = AudioFormat.Wav,
         [".mp3"] = AudioFormat.Mp3,
         [".flac"] = AudioFormat.Flac,
+        [".ogg"] = AudioFormat.Ogg,
+        [".oga"] = AudioFormat.Ogg,
         [".m4a"] = AudioFormat.M4a
     };
 

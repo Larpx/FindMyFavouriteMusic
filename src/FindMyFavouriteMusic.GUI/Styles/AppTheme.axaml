@@ -1,0 +1,260 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 导航按钮样式：侧边栏 -->
+    <Style Selector="Button.nav-item">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Padding" Value="12,10"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.nav-item:pointerover">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhost}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+    </Style>
+    <Style Selector="Button.nav-item:pressed">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhostHover}"/>
+    </Style>
+    <Style Selector="Button.nav-item.active">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhost}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushPrimary}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <!-- 激活态图标颜色继承 -->
+    <Style Selector="Button.nav-item.active Path">
+        <Setter Property="Stroke" Value="{StaticResource BrushPrimary}"/>
+    </Style>
+    <Style Selector="Button.nav-item:pointerover Path">
+        <Setter Property="Stroke" Value="{StaticResource BrushTextPrimary}"/>
+    </Style>
+    <Style Selector="Button.nav-item Path">
+        <Setter Property="Stroke" Value="{StaticResource BrushTextSecondary}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Stroke" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <!-- 主要操作按钮 -->
+    <Style Selector="Button.accent-btn">
+        <Setter Property="Background" Value="{StaticResource BrushPrimary}"/>
+        <Setter Property="Foreground" Value="#0a0e1a"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="20,10"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.accent-btn:pointerover">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryLight}"/>
+    </Style>
+    <Style Selector="Button.accent-btn:pressed">
+        <Setter Property="Opacity" Value="0.85"/>
+    </Style>
+    <Style Selector="Button.accent-btn:disabled">
+        <Setter Property="Background" Value="{StaticResource BrushBgElevated}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}"/>
+        <Setter Property="Opacity" Value="0.6"/>
+    </Style>
+
+    <!-- 轮廓按钮 -->
+    <Style Selector="Button.outline-btn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushPrimary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushPrimary}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.outline-btn:pointerover">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhost}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushPrimaryLight}"/>
+    </Style>
+    <Style Selector="Button.outline-btn:pressed">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhostHover}"/>
+    </Style>
+
+    <!-- 幽灵按钮 -->
+    <Style Selector="Button.ghost-btn">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.ghost-btn:pointerover">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhost}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+    </Style>
+
+    <!-- 危险按钮 -->
+    <Style Selector="Button.danger-btn">
+        <Setter Property="Background" Value="{StaticResource BrushError}"/>
+        <Setter Property="Foreground" Value="#ffffff"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.danger-btn:pointerover">
+        <Setter Property="Opacity" Value="0.85"/>
+    </Style>
+
+    <!-- 输入框样式 -->
+    <Style Selector="TextBox.sci-input">
+        <Setter Property="Background" Value="{StaticResource ColorBgSurface}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="TextBox.sci-input:focus">
+        <Setter Property="BorderBrush" Value="{StaticResource BrushPrimary}"/>
+    </Style>
+    <Style Selector="TextBox.sci-input:pointerover">
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorderHover}"/>
+    </Style>
+
+    <!-- 卡片容器 -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{StaticResource ColorBgSurface}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="20"/>
+    </Style>
+
+    <!-- 带有顶部高亮线的卡片 -->
+    <Style Selector="Border.card-accent">
+        <Setter Property="Background" Value="{StaticResource ColorBgSurface}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="20"/>
+        <Setter Property="BoxShadow" Value="inset 0 2 0 0 #00d4ff"/>
+    </Style>
+
+    <!-- 进度条样式 -->
+    <Style Selector="ProgressBar.sci-progress">
+        <Setter Property="Height" Value="6"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushPrimary}"/>
+        <Setter Property="Background" Value="{StaticResource ColorBgElevated}"/>
+    </Style>
+
+    <!-- 粗进度条 -->
+    <Style Selector="ProgressBar.sci-progress-lg">
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushPrimary}"/>
+        <Setter Property="Background" Value="{StaticResource ColorBgElevated}"/>
+    </Style>
+
+    <!-- 标签文字 -->
+    <Style Selector="TextBlock.label-text">
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextSm}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+
+    <!-- 值文字 -->
+    <Style Selector="TextBlock.value-text">
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 章节标题 -->
+    <Style Selector="TextBlock.section-title">
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextMd}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 页面标题 -->
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextXl}"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <!-- DataGrid 全局暗色覆盖 -->
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="{StaticResource ColorBgSurface}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="RowBackground" Value="Transparent"/>
+        <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="FontSize" Value="{StaticResource TextBase}"/>
+    </Style>
+    <Style Selector="DataGridRow:pointerover /template/ ContentControl#RowRoot">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhost}"/>
+    </Style>
+    <Style Selector="DataGridRow:selected /template/ ContentControl#RowRoot">
+        <Setter Property="Background" Value="{StaticResource BrushPrimaryGhostHover}"/>
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="{StaticResource ColorBgSurfaceAlt}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="{StaticResource TextSm}"/>
+        <Setter Property="Padding" Value="12,10"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+    </Style>
+    <Style Selector="DataGridCell">
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+    </Style>
+
+</Styles>

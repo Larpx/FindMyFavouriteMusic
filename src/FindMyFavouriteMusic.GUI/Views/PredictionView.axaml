@@ -1,79 +1,130 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
              xmlns:cvt="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
+             mc:Ignorable="d" d:DesignWidth="750" d:DesignHeight="600"
              x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.PredictionView"
-             x:DataType="vm:PredictionViewModel">
+             x:DataType="vm:PredictionViewModel"
+             Background="{StaticResource BrushBgBase}">
 
     <UserControl.Resources>
         <cvt:ScoreToColorConverter x:Key="ScoreToColorConverter"/>
     </UserControl.Resources>
 
-    <StackPanel Spacing="16">
-        <TextBlock Text="音乐喜好预测" FontSize="20" FontWeight="SemiBold" Foreground="#111827"/>
+    <ScrollViewer>
+        <StackPanel Margin="24,20,24,20" Spacing="20">
+            <!-- 页面标题 -->
+            <TextBlock Text="音乐喜好预测" Classes="page-title"/>
 
-        <!-- 文件选择 / 拖拽上传区域 -->
-        <Border Background="#ffffff" CornerRadius="8" Padding="16"
-                BoxShadow="0 1px 3px rgba(0,0,0,0.08)"
-                DragDrop.AllowDrop="True"
-                DragDrop.DragEnter="OnDragEnter"
-                DragDrop.DragLeave="OnDragLeave"
-                DragDrop.Drop="OnDrop"
-                x:Name="DropZone">
-            <StackPanel Spacing="8">
-                <TextBlock Text="选择音乐文件" FontWeight="SemiBold" Foreground="#111827"/>
-                <TextBlock Text="支持拖拽音频文件到此处，或点击浏览按钮选择"
-                           Foreground="#6b7280" FontSize="14"/>
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBox Text="{Binding SelectedFilePath}" PlaceholderText="文件路径"
-                             Grid.Column="0" IsReadOnly="True"/>
-                    <Button Content="浏览" Command="{Binding SelectFileCommand}"
-                            Grid.Column="1" Margin="8,0,0,0" Padding="12,6"/>
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <!-- 预测结果 -->
-        <Border Background="#ffffff" CornerRadius="8" Padding="16"
-                BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
-            <StackPanel Spacing="12">
-                <TextBlock Text="预测结果" FontWeight="SemiBold" Foreground="#111827"/>
-
-                <!-- 总分 -->
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="匹配度:" FontSize="16" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding PredictionScore}" FontSize="32"
-                               FontWeight="Bold" Foreground="{Binding PredictionScore, Converter={StaticResource ScoreToColorConverter}}"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Text="%" FontSize="16" VerticalAlignment="Center"/>
+            <!-- 文件选择 / 拖拽上传区域 -->
+            <Border Classes="card-accent"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragEnter="OnDragEnter"
+                    DragDrop.DragLeave="OnDragLeave"
+                    DragDrop.Drop="OnDrop"
+                    x:Name="DropZone">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="选择音乐文件" Classes="section-title"/>
+                    <TextBlock Text="拖拽音频文件到此处，或点击浏览按钮选择文件"
+                               Classes="label-text" TextWrapping="Wrap"/>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Text="{Binding SelectedFilePath}"
+                                 PlaceholderText="文件路径"
+                                 Classes="sci-input"
+                                 Grid.Column="0" IsReadOnly="True"/>
+                        <Button Content="浏览"
+                                Classes="outline-btn"
+                                Command="{Binding SelectFileCommand}"
+                                Grid.Column="1"/>
+                    </Grid>
                 </StackPanel>
+            </Border>
 
-                <ProgressBar Value="{Binding PredictionScore}" Minimum="0" Maximum="100"
-                             Height="8" CornerRadius="4"/>
+            <!-- 预测结果区域 -->
+            <Border Classes="card">
+                <StackPanel Spacing="20">
+                    <TextBlock Text="预测结果" Classes="section-title"/>
 
-                <!-- 分项得分 -->
-                <Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="4">
-                    <TextBlock Text="声学特征相似度:" Foreground="#6b7280" Grid.Row="0" Grid.Column="0"/>
-                    <TextBlock Text="{Binding AcousticScore}" FontWeight="SemiBold" Grid.Row="0" Grid.Column="1"/>
+                    <!-- 得分主展示区 -->
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="24">
+                        <!-- 大号得分 -->
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Width="140" Height="140">
+                            <!-- 得分环形区域 -->
+                            <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding PredictionScore, StringFormat='{}{0:F1}'}"
+                                           FontSize="{StaticResource Text3xl}"
+                                           FontWeight="Bold"
+                                           Foreground="{Binding PredictionScore, Converter={StaticResource ScoreToColorConverter}}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
 
-                    <TextBlock Text="深度特征相似度:" Foreground="#6b7280" Grid.Row="1" Grid.Column="0"/>
-                    <TextBlock Text="{Binding DeepScore, TargetNullValue='不可用'}"
-                               FontWeight="SemiBold" Grid.Row="1" Grid.Column="1"/>
-                </Grid>
+                        <!-- 得分详情 -->
+                        <StackPanel Spacing="16" VerticalAlignment="Center" Grid.Column="1">
+                            <!-- 匹配度进度条 -->
+                            <StackPanel Spacing="6">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock Text="匹配度" Classes="label-text" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding PredictionScore, StringFormat='{}{0:F1}%'}"
+                                               FontWeight="Bold" FontSize="{StaticResource TextLg}"
+                                               Foreground="{Binding PredictionScore, Converter={StaticResource ScoreToColorConverter}}"
+                                               Grid.Column="1" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <ProgressBar Classes="sci-progress-lg"
+                                             Value="{Binding PredictionScore}" Minimum="0" Maximum="100"/>
+                            </StackPanel>
 
-                <TextBlock Text="{Binding CurrentMode}" Foreground="#6b7280" FontSize="14"/>
-            </StackPanel>
-        </Border>
+                            <!-- 声学特征得分 -->
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock Text="声学特征" Classes="label-text" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding AcousticScore, StringFormat='{}{0:F1}%'}"
+                                               Classes="value-text"
+                                               Grid.Column="1" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <ProgressBar Classes="sci-progress"
+                                             Value="{Binding AcousticScore}" Minimum="0" Maximum="100"/>
+                            </StackPanel>
 
-        <!-- 预测按钮 -->
-        <Button Content="开始预测" Command="{Binding PredictCommand}"
-                IsEnabled="{Binding !IsPredicting}"
-                HorizontalAlignment="Left" Padding="24,8"/>
+                            <!-- 深度特征得分 -->
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock Text="深度特征" Classes="label-text" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding DeepScore, StringFormat='{}{0:F1}%', TargetNullValue='不可用'}"
+                                               Classes="value-text"
+                                               Grid.Column="1" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <ProgressBar Classes="sci-progress"
+                                             Value="{Binding DeepScore, TargetNullValue=0}" Minimum="0" Maximum="100"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
 
-        <TextBlock Text="{Binding StatusMessage}" Foreground="#6b7280" FontSize="14"/>
-    </StackPanel>
+                    <!-- 模式标签 -->
+                    <Border Background="{StaticResource BrushPrimaryGhost}"
+                            CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding CurrentMode}"
+                                   Foreground="{StaticResource BrushPrimary}"
+                                   FontSize="{StaticResource TextSm}" FontWeight="Medium"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- 预测按钮 -->
+            <Button Content="开始预测"
+                    Classes="accent-btn"
+                    Command="{Binding PredictCommand}"
+                    IsEnabled="{Binding !IsPredicting}"
+                    HorizontalAlignment="Left"/>
+
+            <!-- 状态消息 -->
+            <TextBlock Text="{Binding StatusMessage}"
+                       Classes="label-text"/>
+        </StackPanel>
+    </ScrollViewer>
 
 </UserControl>

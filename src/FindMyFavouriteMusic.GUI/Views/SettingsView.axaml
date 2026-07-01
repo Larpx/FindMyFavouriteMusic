@@ -1,69 +1,252 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
+             xmlns:cvt="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="550"
+             mc:Ignorable="d" d:DesignWidth="750" d:DesignHeight="600"
              x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.SettingsView"
-             x:DataType="vm:SettingsViewModel">
+             x:DataType="vm:SettingsViewModel"
+             Background="{StaticResource BrushBgBase}">
+
+    <UserControl.Resources>
+        <cvt:StringEqualsConverter x:Key="StringEqualsConverter"/>
+    </UserControl.Resources>
 
     <ScrollViewer>
-        <StackPanel Spacing="16">
-            <TextBlock Text="设置" FontSize="20" FontWeight="SemiBold" Foreground="#111827"/>
+        <StackPanel Margin="24,20,24,20" Spacing="20">
+            <!-- 页面标题 -->
+            <TextBlock Text="设置" Classes="page-title"/>
 
-            <!-- 预测权重 -->
-            <Border Background="#ffffff" CornerRadius="8" Padding="16"
-                    BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="预测权重" FontWeight="SemiBold" Foreground="#111827"/>
+            <!-- ======================================================== -->
+            <!-- 预测权重                                                  -->
+            <!-- ======================================================== -->
+            <Border Classes="card-accent">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="预测权重" Classes="section-title"/>
 
-                    <Grid ColumnDefinitions="120,Auto" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="8">
-                        <TextBlock Text="声学权重:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
-                        <TextBox Text="{Binding AcousticWeight}" Grid.Row="0" Grid.Column="1" Width="80"/>
+                    <Border Background="{StaticResource BrushPrimaryGhost}" CornerRadius="6" Padding="12,10">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="控制声学特征与深度特征在最终匹配度中的占比。两者之和应为 1.0。"
+                                       Foreground="{StaticResource BrushTextSecondary}"
+                                       FontSize="{StaticResource TextSm}" TextWrapping="Wrap"/>
+                            <TextBlock Text="声学特征侧重音色、节奏等传统信号分析；深度特征侧重乐器、氛围等高层语义理解。"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
 
-                        <TextBlock Text="深度权重:" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
-                        <TextBox Text="{Binding DeepWeight}" Grid.Row="1" Grid.Column="1" Width="80"/>
+                    <Grid ColumnDefinitions="120,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                        <TextBlock Text="声学权重" Classes="label-text"
+                                   Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding AcousticWeight}" Classes="sci-input"
+                                 Grid.Row="0" Grid.Column="1"/>
+                        <TextBlock Text="范围 0~1，推荐 0.3~0.5"
+                                   Classes="label-text" FontSize="{StaticResource TextXs}"
+                                   Foreground="{StaticResource BrushTextMuted}"
+                                   Grid.Row="0" Grid.Column="2" VerticalAlignment="Center"
+                                   Margin="4,0,0,0"/>
+
+                        <TextBlock Text="深度权重" Classes="label-text"
+                                   Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding DeepWeight}" Classes="sci-input"
+                                 Grid.Row="1" Grid.Column="1"/>
+                        <TextBlock Text="范围 0~1，推荐 0.5~0.7"
+                                   Classes="label-text" FontSize="{StaticResource TextXs}"
+                                   Foreground="{StaticResource BrushTextMuted}"
+                                   Grid.Row="1" Grid.Column="2" VerticalAlignment="Center"
+                                   Margin="4,0,0,0"/>
                     </Grid>
 
-                    <Button Content="保存权重" Command="{Binding SaveWeightsCommand}" Padding="12,6"/>
+                    <StackPanel Spacing="2" Margin="0,4,0,0">
+                        <TextBlock Text="权重效果示例：" Foreground="{StaticResource BrushTextMuted}"
+                                   FontSize="{StaticResource TextXs}" FontWeight="Medium"/>
+                        <TextBlock Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap">
+                            <Run Text="  声学 0.4 + 深度 0.6"/>
+                            <Run Text=" — 侧重语义理解，适合区分风格差异大的音乐"/>
+                        </TextBlock>
+                        <TextBlock Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap">
+                            <Run Text="  声学 0.7 + 深度 0.3"/>
+                            <Run Text=" — 侧重音色相似度，适合找翻唱或混音版本"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <Button Content="保存权重"
+                            Classes="outline-btn"
+                            Command="{Binding SaveWeightsCommand}"/>
                 </StackPanel>
             </Border>
 
-            <!-- ONNX 模型 -->
-            <Border Background="#ffffff" CornerRadius="8" Padding="16"
-                    BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="深度学习模型" FontWeight="SemiBold" Foreground="#111827"/>
+            <!-- ======================================================== -->
+            <!-- 深度学习模型                                               -->
+            <!-- ======================================================== -->
+            <Border Classes="card">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="深度学习模型" Classes="section-title"/>
 
-                    <CheckBox Content="启用深度特征" IsChecked="{Binding EnableDeepFeatures}"/>
+                    <Border Background="{StaticResource BrushPrimaryGhost}" CornerRadius="6" Padding="12,10">
+                        <StackPanel Spacing="4">
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource BrushTextSecondary}" FontSize="{StaticResource TextSm}">
+                                <Run Text="深度模型将音频映射为高维语义向量，捕捉乐器、旋律、和声、氛围等高层特征。"/>
+                                <Run Text="均为预训练模型，无需自行训练，下载 ONNX 文件即可使用。"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
 
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                        <TextBox Text="{Binding OnnxModelPath}" PlaceholderText="VGGish 模型路径"
-                                 Grid.Column="0"/>
-                        <Button Content="加载模型" Command="{Binding LoadModelCommand}"
-                                Grid.Column="1" Padding="12,6"/>
-                        <Button Content="保存配置" Command="{Binding SaveOnnxSettingsCommand}"
-                                Grid.Column="2" Padding="12,6"/>
-                    </Grid>
+                    <!-- 启用开关 -->
+                    <CheckBox Content="启用深度特征"
+                              IsChecked="{Binding EnableDeepFeatures}"
+                              Foreground="{StaticResource BrushTextPrimary}"
+                              FontSize="{StaticResource TextBase}"/>
+                    <TextBlock Text="启用后预测将融合声学+深度两种特征，匹配更精准；关闭则仅使用声学特征（MFCC），速度更快。"
+                               Foreground="{StaticResource BrushTextMuted}"
+                               FontSize="{StaticResource TextXs}" TextWrapping="Wrap" Margin="24,0,0,0"/>
 
-                    <TextBlock Text="{Binding IsModelLoaded, StringFormat='模型已加载: {0}'}"
-                               Foreground="#6b7280" FontSize="14"/>
+                    <!-- 模型类型选择 -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="模型类型" Classes="label-text"/>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <RadioButton Content="VGGish (128 维，通用音频)"
+                                         IsChecked="{Binding SelectedModelType, Converter={StaticResource StringEqualsConverter}, ConverterParameter=VGGish}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                            <RadioButton Content="MERT (768 维，音乐专用)"
+                                         IsChecked="{Binding SelectedModelType, Converter={StaticResource StringEqualsConverter}, ConverterParameter=MERT}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 模型对比说明 -->
+                    <Border Background="#0d1117" CornerRadius="6" Padding="14,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                            <StackPanel Spacing="4" Grid.Column="0">
+                                <TextBlock Text="VGGish" Foreground="{StaticResource BrushPrimary}"
+                                           FontSize="{StaticResource TextSm}" FontWeight="SemiBold"/>
+                                <TextBlock Text="Google Audioset 预训练" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="输出: 128 维向量" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="输入: mel 频谱图 (96×64)" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="体积: ~70MB" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="擅长: 通用音频场景识别" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="4" Grid.Column="1">
+                                <TextBlock Text="MERT-v1-95M" Foreground="{StaticResource BrushSecondary}"
+                                           FontSize="{StaticResource TextSm}" FontWeight="SemiBold"/>
+                                <TextBlock Text="音乐专用自监督预训练" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="输出: 768 维向量" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="输入: 原始波形 (24kHz)" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="体积: ~378MB" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                                <TextBlock Text="擅长: 旋律、和声、风格理解" Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- VGGish 模型路径 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="VGGish 模型文件路径" Classes="label-text"/>
+                        <TextBox Text="{Binding VggishModelPath}"
+                                 PlaceholderText="例如: C:\Models\vggish.onnx"
+                                 Classes="sci-input"/>
+                    </StackPanel>
+
+                    <!-- MERT 模型路径 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="MERT 模型文件路径" Classes="label-text"/>
+                        <TextBox Text="{Binding MertModelPath}"
+                                 PlaceholderText="例如: C:\Models\mert_v1_95M.onnx"
+                                 Classes="sci-input"/>
+                    </StackPanel>
+
+                    <!-- 操作按钮 -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="加载模型"
+                                Classes="outline-btn"
+                                Command="{Binding LoadModelCommand}"
+                                IsEnabled="{Binding !IsLoadingModel}"/>
+                        <Button Content="保存配置"
+                                Classes="outline-btn"
+                                Command="{Binding SaveOnnxSettingsCommand}"/>
+                    </StackPanel>
+
+                    <!-- 模型获取指南 -->
+                    <Border Background="#0d1117" CornerRadius="6" Padding="14,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="模型获取指南" Foreground="{StaticResource BrushPrimary}"
+                                       FontSize="{StaticResource TextSm}" FontWeight="SemiBold"/>
+                            <TextBlock Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"
+                                       Text="VGGish：从 GitHub 搜索 vggish onnx 直接下载；或从 Google Audioset 下载 .ckpt 后用 tf2onnx 转换"/>
+                            <TextBlock Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"
+                                       Text="MERT：1) 安装工具 pip install optimum[onnxruntime] transformers"/>
+                            <TextBlock Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"
+                                       Text="      2) 转换命令 optimum-cli export onnx --model m-a-p/MERT-v1-95M --task feature-extraction mert_onnx"/>
+                            <TextBlock Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"
+                                       Text="      3) 转换完成后使用 mert_onnx/model.onnx 文件"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 模型加载状态 -->
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Background="{StaticResource BrushPrimaryGhost}"
+                                CornerRadius="4" Padding="8,4">
+                            <TextBlock Text="{Binding FeatureDimensionInfo}"
+                                       Foreground="{StaticResource BrushPrimary}"
+                                       FontSize="{StaticResource TextSm}" FontWeight="Medium"/>
+                        </Border>
+                        <Border Background="{StaticResource BrushPrimaryGhost}"
+                                CornerRadius="4" Padding="8,4">
+                            <TextBlock Foreground="{StaticResource BrushPrimary}"
+                                       FontSize="{StaticResource TextSm}" FontWeight="Medium">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="模型已加载: {0}">
+                                        <Binding Path="IsModelLoaded"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- 画像管理 -->
-            <Border Background="#ffffff" CornerRadius="8" Padding="16"
-                    BoxShadow="0 1px 3px rgba(0,0,0,0.08)">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="画像管理" FontWeight="SemiBold" Foreground="#111827"/>
-                    <TextBlock Text="重建画像将基于所有已标记喜欢的歌曲重新计算均值向量"
-                               Foreground="#6b7280" FontSize="14" TextWrapping="Wrap"/>
-                    <Button Content="重建画像" Command="{Binding RebuildProfileCommand}"
-                            Padding="12,6"/>
+            <!-- ======================================================== -->
+            <!-- 画像管理                                                  -->
+            <!-- ======================================================== -->
+            <Border Classes="card">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="画像管理" Classes="section-title"/>
+
+                    <Border Background="{StaticResource BrushPrimaryGhost}" CornerRadius="6" Padding="12,10">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="用户画像是基于所有「喜欢」歌曲的特征向量均值，代表了你的音乐偏好方向。"
+                                       Foreground="{StaticResource BrushTextSecondary}"
+                                       FontSize="{StaticResource TextSm}" TextWrapping="Wrap"/>
+                            <TextBlock Text="预测时，系统计算目标歌曲与画像的余弦相似度来判断匹配程度。"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="何时需要重建画像？" Foreground="{StaticResource BrushTextMuted}"
+                                   FontSize="{StaticResource TextXs}" FontWeight="Medium"/>
+                        <TextBlock Text="  - 修改了喜欢/不喜欢的歌曲后，需重建才能反映最新偏好"
+                                   Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                        <TextBlock Text="  - 首次加载深度模型后，需重建以补充深度特征向量"
+                                   Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                        <TextBlock Text="  - 切换模型类型（VGGish↔MERT）后，需重建以使用新维度向量"
+                                   Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                        <TextBlock Text="  - 修改预测权重后，无需重建（权重仅影响预测计算，不影响画像本身）"
+                                   Foreground="{StaticResource BrushTextMuted}" FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <Button Content="重建画像"
+                            Classes="danger-btn"
+                            Command="{Binding RebuildProfileCommand}"
+                            IsEnabled="{Binding !IsRebuilding}"/>
                 </StackPanel>
             </Border>
 
-            <TextBlock Text="{Binding StatusMessage}" Foreground="#6b7280" FontSize="14"/>
+            <!-- 状态消息 -->
+            <TextBlock Text="{Binding StatusMessage}" Classes="label-text"/>
         </StackPanel>
     </ScrollViewer>
 

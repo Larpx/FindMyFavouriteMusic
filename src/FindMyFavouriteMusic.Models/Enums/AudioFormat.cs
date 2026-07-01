@@ -1,4 +1,4 @@
-﻿namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
+namespace Larpx.PersonalTools.FindMyFavouriteMusic.Models.Enums;
 
 /// <summary>
 /// 支持的音频格式
@@ -9,5 +9,6 @@ public enum AudioFormat
     Wav,
     Mp3,
     Flac,
+    Ogg,
     M4a
 }

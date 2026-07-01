@@ -5,9 +5,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BunLabs.NAudio.Flac" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="NAudio" />
+    <PackageReference Include="NAudio.Vorbis" />
     <PackageReference Include="NWaves" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
     <PackageReference Include="MathNet.Numerics" />

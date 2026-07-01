@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -26,6 +27,8 @@ public partial class PredictionViewModel : ViewModelBase
     private readonly IProfileService _profileService;
     // 日志记录器：用于记录异常和关键操作
     private readonly ILogger<PredictionViewModel> _logger;
+    // 对话框服务：用于向用户弹出操作反馈
+    private readonly IDialogService _dialogService;
 
     /// <summary>
     /// 文件选择交互回调，由 View 层（Code-behind）在运行时设置。
@@ -44,14 +47,17 @@ public partial class PredictionViewModel : ViewModelBase
     /// <param name="predictionService">预测服务</param>
     /// <param name="profileService">用户画像服务</param>
     /// <param name="logger">日志记录器</param>
+    /// <param name="dialogService">对话框服务</param>
     public PredictionViewModel(
         IPredictionService predictionService,
         IProfileService profileService,
-        ILogger<PredictionViewModel> logger)
+        ILogger<PredictionViewModel> logger,
+        IDialogService dialogService)
     {
         _predictionService = predictionService;
         _profileService = profileService;
         _logger = logger;
+        _dialogService = dialogService;
     }
 
     /// <summary>
@@ -158,10 +164,13 @@ public partial class PredictionViewModel : ViewModelBase
                 // 将预测模式枚举映射为用户友好的中文显示文本
                 CurrentMode = prediction.Mode == PredictionMode.AcousticAndDeep ? "深度增强模式" : "声学模式";
                 StatusMessage = $"预测完成: {prediction.SongTitle} - 匹配度 {PredictionScore}%";
+                await _dialogService.ShowSuccessAsync("预测完成",
+                    $"{prediction.SongTitle}\n匹配度: {PredictionScore}%");
             }
             else
             {
                 StatusMessage = $"预测失败: {result.Error}";
+                await _dialogService.ShowErrorAsync("预测失败", result.Error ?? "未知错误");
             }
         }
         catch (Exception ex)
@@ -169,6 +178,7 @@ public partial class PredictionViewModel : ViewModelBase
             // 捕获未预期异常并记录日志，避免应用崩溃
             _logger.LogError(ex, "预测失败");
             StatusMessage = $"预测出错: {ex.Message}";
+            await _dialogService.ShowErrorAsync("预测出错", ex.Message);
         }
         finally
         {

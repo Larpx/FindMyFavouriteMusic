@@ -69,7 +69,7 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
         // 如果配置中启用了深度特征且有路径，自动加载模型
         if (_options.EnableDeepFeatures && !string.IsNullOrEmpty(_options.VggishModelPath))
         {
-            var result = LoadModel(_options.VggishModelPath);
+            var result = LoadModel(_options.VggishModelPath, DeepModelType.VGGish);
             if (!result.IsSuccess)
             {
                 _logger.LogWarning("ONNX 模型自动加载失败: {Error}", result.Error);
@@ -87,10 +87,11 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
     /// 加载指定路径的 VGGish ONNX 模型到内存中的推理会话。
     /// </summary>
     /// <param name="modelPath">ONNX 模型文件的绝对路径。</param>
+    /// <param name="modelType">模型类型（由工厂传入，本提取器固定为 VGGish，忽略此参数）。</param>
     /// <returns>加载结果：成功返回 Success；文件不存在或加载异常时返回 Failure 并携带错误信息。</returns>
     /// <remarks>加载失败时会将内部会话置为 null，确保 <see cref="IsModelLoaded"/> 状态与实际状态一致，
     /// 触发上游的优雅降级逻辑。</remarks>
-    public Result LoadModel(string modelPath)
+    public Result LoadModel(string modelPath, DeepModelType modelType)
     {
         if (!File.Exists(modelPath))
         {
@@ -187,10 +188,21 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
             // 计算该帧的 log-mel 频谱图，形状 96×64
             var melSpectrogram = ComputeLogMelSpectrogram(frame, sampleRate);
 
-            // 构造 ONNX 输入张量 (batch=1, channel=1, time=96, mel=64)
-            var inputTensor = new DenseTensor<float>(melSpectrogram, [1, 1, SpectrogramTimeSteps, MelBins]);
-            // 从模型元数据取出输入名称（VGGish 默认为 "melspectrogram"），避免硬编码
+            // 构造 ONNX 输入张量：根据模型实际输入形状自动适配
+            // Keras 转换的模型输入形状为 (batch, 96, 64, 1) 即 NHWC 格式
             var inputMetadata = _session!.InputMetadata.First();
+            var inputShape = inputMetadata.Value.Dimensions;
+            DenseTensor<float> inputTensor;
+            if (inputShape.Length == 4 && inputShape[3] == 1)
+            {
+                // NHWC 格式: (batch, height, width, channels)
+                inputTensor = new DenseTensor<float>(melSpectrogram, [1, SpectrogramTimeSteps, MelBins, 1]);
+            }
+            else
+            {
+                // NCHW 格式: (batch, channels, height, width)
+                inputTensor = new DenseTensor<float>(melSpectrogram, [1, 1, SpectrogramTimeSteps, MelBins]);
+            }
             var inputs = new List<NamedOnnxValue>
             {
                 NamedOnnxValue.CreateFromTensor(inputMetadata.Key, inputTensor)

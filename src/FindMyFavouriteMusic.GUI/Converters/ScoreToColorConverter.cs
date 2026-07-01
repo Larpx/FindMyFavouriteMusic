@@ -1,11 +1,11 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Converters;
 
 /// <summary>
-/// 分数转颜色转换器，0-30 红色，30-70 黄色，70-100 绿色
+/// 分数转颜色转换器，暗色科幻主题：高匹配度电光青、中等霓虹紫、低匹配度警告红
 /// </summary>
 public class ScoreToColorConverter : IValueConverter
 {
@@ -15,9 +15,9 @@ public class ScoreToColorConverter : IValueConverter
 
         return score switch
         {
-            >= 70 => new SolidColorBrush(Color.Parse("#10b981")),
-            >= 30 => new SolidColorBrush(Color.Parse("#f59e0b")),
-            _ => new SolidColorBrush(Color.Parse("#ef4444"))
+            >= 70 => new SolidColorBrush(Color.Parse("#00ff88")),
+            >= 40 => new SolidColorBrush(Color.Parse("#ffaa00")),
+            _ => new SolidColorBrush(Color.Parse("#ff3366"))
         };
     }
 

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
@@ -54,19 +54,21 @@ public class UserSettingsService : IUserSettingsService
     }
 
     /// <inheritdoc/>
-    public async Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string? vggishModelPath)
+    public async Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath)
     {
         try
         {
             var root = await ReadRootAsync();
             var onnx = root[nameof(JsonKeys.OnnxModel)] as JsonObject ?? new JsonObject();
             onnx[nameof(JsonKeys.EnableDeepFeatures)] = enableDeepFeatures;
+            onnx[nameof(JsonKeys.ModelType)] = modelType;
             onnx[nameof(JsonKeys.VggishModelPath)] = vggishModelPath ?? string.Empty;
+            onnx[nameof(JsonKeys.MertModelPath)] = mertModelPath ?? string.Empty;
             root[nameof(JsonKeys.OnnxModel)] = onnx;
 
             await WriteRootAsync(root);
-            _logger.LogInformation("ONNX 模型配置已保存: Enable={Enable}, Path={Path}",
-                enableDeepFeatures, vggishModelPath);
+            _logger.LogInformation("ONNX 模型配置已保存: Enable={Enable}, Type={Type}, VggishPath={VggishPath}, MertPath={MertPath}",
+                enableDeepFeatures, modelType, vggishModelPath, mertModelPath);
             return Result.Success();
         }
         catch (Exception ex)
@@ -108,6 +110,8 @@ public class UserSettingsService : IUserSettingsService
         public const string DeepWeight = "DeepWeight";
         public const string OnnxModel = "OnnxModel";
         public const string EnableDeepFeatures = "EnableDeepFeatures";
+        public const string ModelType = "ModelType";
         public const string VggishModelPath = "VggishModelPath";
+        public const string MertModelPath = "MertModelPath";
     }
 }

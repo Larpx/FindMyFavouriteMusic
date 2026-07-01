@@ -1,51 +1,120 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- 颜色令牌 -->
-    <Color x:Key="ColorPrimary">#4f46e5</Color>
-    <Color x:Key="ColorSecondary">#6366f1</Color>
-    <Color x:Key="ColorSuccess">#10b981</Color>
-    <Color x:Key="ColorWarning">#f59e0b</Color>
-    <Color x:Key="ColorError">#ef4444</Color>
+    <!-- ============================== -->
+    <!-- 暗色科幻主题 - 色彩令牌系统     -->
+    <!-- ============================== -->
 
-    <Color x:Key="ColorNeutral900">#111827</Color>
-    <Color x:Key="ColorNeutral600">#6b7280</Color>
-    <Color x:Key="ColorNeutral400">#9ca3af</Color>
-    <Color x:Key="ColorNeutral100">#f3f4f6</Color>
+    <!-- 主色系：电光青 -->
+    <Color x:Key="ColorPrimary">#00d4ff</Color>
+    <Color x:Key="ColorPrimaryDark">#0090b3</Color>
+    <Color x:Key="ColorPrimaryLight">#33e0ff</Color>
 
-    <!-- 画刷 -->
+    <!-- 辅助色系：霓虹紫 -->
+    <Color x:Key="ColorSecondary">#8b5cf6</Color>
+    <Color x:Key="ColorSecondaryDark">#6d3fd4</Color>
+
+    <!-- 语义色 -->
+    <Color x:Key="ColorSuccess">#00ff88</Color>
+    <Color x:Key="ColorWarning">#ffaa00</Color>
+    <Color x:Key="ColorError">#ff3366</Color>
+
+    <!-- 背景与表面层 -->
+    <Color x:Key="ColorBgBase">#0a0e1a</Color>
+    <Color x:Key="ColorBgSurface">#131a2e</Color>
+    <Color x:Key="ColorBgSurfaceAlt">#1a2340</Color>
+    <Color x:Key="ColorBgElevated">#1e2d52</Color>
+
+    <!-- 边框 -->
+    <Color x:Key="ColorBorder">#1e2d52</Color>
+    <Color x:Key="ColorBorderHover">#2a3f6e</Color>
+    <Color x:Key="ColorBorderFocus">#00d4ff</Color>
+
+    <!-- 文本色阶 -->
+    <Color x:Key="ColorTextPrimary">#e2e8f0</Color>
+    <Color x:Key="ColorTextSecondary">#94a3b8</Color>
+    <Color x:Key="ColorTextMuted">#64748b</Color>
+    <Color x:Key="ColorTextAccent">#00d4ff</Color>
+
+    <!-- ============================== -->
+    <!-- 画刷资源                        -->
+    <!-- ============================== -->
+
     <SolidColorBrush x:Key="BrushPrimary" Color="{StaticResource ColorPrimary}"/>
+    <SolidColorBrush x:Key="BrushPrimaryDark" Color="{StaticResource ColorPrimaryDark}"/>
+    <SolidColorBrush x:Key="BrushPrimaryLight" Color="{StaticResource ColorPrimaryLight}"/>
     <SolidColorBrush x:Key="BrushSecondary" Color="{StaticResource ColorSecondary}"/>
-    <SolidColorBrush x:Key="BrushTextPrimary" Color="{StaticResource ColorNeutral900}"/>
-    <SolidColorBrush x:Key="BrushTextSecondary" Color="{StaticResource ColorNeutral600}"/>
-    <SolidColorBrush x:Key="BrushTextTertiary" Color="{StaticResource ColorNeutral400}"/>
-    <SolidColorBrush x:Key="BrushBackground" Color="#ffffff"/>
-    <SolidColorBrush x:Key="BrushSurface" Color="#f3f4f6"/>
 
-    <!-- 字体大小 -->
+    <SolidColorBrush x:Key="BrushSuccess" Color="{StaticResource ColorSuccess}"/>
+    <SolidColorBrush x:Key="BrushWarning" Color="{StaticResource ColorWarning}"/>
+    <SolidColorBrush x:Key="BrushError" Color="{StaticResource ColorError}"/>
+
+    <SolidColorBrush x:Key="BrushBgBase" Color="{StaticResource ColorBgBase}"/>
+    <SolidColorBrush x:Key="BrushBgSurface" Color="{StaticResource ColorBgSurface}"/>
+    <SolidColorBrush x:Key="BrushBgSurfaceAlt" Color="{StaticResource ColorBgSurfaceAlt}"/>
+    <SolidColorBrush x:Key="BrushBgElevated" Color="{StaticResource ColorBgElevated}"/>
+
+    <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource ColorBorder}"/>
+    <SolidColorBrush x:Key="BrushBorderHover" Color="{StaticResource ColorBorderHover}"/>
+    <SolidColorBrush x:Key="BrushBorderFocus" Color="{StaticResource ColorBorderFocus}"/>
+
+    <SolidColorBrush x:Key="BrushTextPrimary" Color="{StaticResource ColorTextPrimary}"/>
+    <SolidColorBrush x:Key="BrushTextSecondary" Color="{StaticResource ColorTextSecondary}"/>
+    <SolidColorBrush x:Key="BrushTextMuted" Color="{StaticResource ColorTextMuted}"/>
+    <SolidColorBrush x:Key="BrushTextAccent" Color="{StaticResource ColorTextAccent}"/>
+
+    <!-- 半透明画刷 -->
+    <SolidColorBrush x:Key="BrushOverlay" Color="#000000" Opacity="0.5"/>
+    <SolidColorBrush x:Key="BrushPrimaryGhost" Color="#00d4ff" Opacity="0.08"/>
+    <SolidColorBrush x:Key="BrushPrimaryGhostHover" Color="#00d4ff" Opacity="0.15"/>
+    <SolidColorBrush x:Key="BrushSecondaryGhost" Color="#8b5cf6" Opacity="0.08"/>
+
+    <!-- ============================== -->
+    <!-- 字体大小令牌                    -->
+    <!-- ============================== -->
     <x:Double x:Key="TextXs">12</x:Double>
-    <x:Double x:Key="TextSm">14</x:Double>
-    <x:Double x:Key="TextBase">16</x:Double>
+    <x:Double x:Key="TextSm">13</x:Double>
+    <x:Double x:Key="TextBase">14</x:Double>
+    <x:Double x:Key="TextMd">16</x:Double>
     <x:Double x:Key="TextLg">20</x:Double>
     <x:Double x:Key="TextXl">24</x:Double>
     <x:Double x:Key="Text2xl">32</x:Double>
+    <x:Double x:Key="Text3xl">42</x:Double>
 
-    <!-- 间距 -->
+    <!-- ============================== -->
+    <!-- 间距令牌                        -->
+    <!-- ============================== -->
     <x:Double x:Key="Space1">4</x:Double>
     <x:Double x:Key="Space2">8</x:Double>
     <x:Double x:Key="Space3">12</x:Double>
     <x:Double x:Key="Space4">16</x:Double>
+    <x:Double x:Key="Space5">20</x:Double>
     <x:Double x:Key="Space6">24</x:Double>
     <x:Double x:Key="Space8">32</x:Double>
+    <x:Double x:Key="Space10">40</x:Double>
     <x:Double x:Key="Space12">48</x:Double>
     <x:Double x:Key="Space16">64</x:Double>
 
-    <!-- 圆角 -->
-    <x:Double x:Key="RadiusSm">6</x:Double>
-    <x:Double x:Key="RadiusMd">8</x:Double>
+    <!-- ============================== -->
+    <!-- 圆角令牌                        -->
+    <!-- ============================== -->
+    <x:Double x:Key="RadiusSm">4</x:Double>
+    <x:Double x:Key="RadiusMd">6</x:Double>
+    <x:Double x:Key="RadiusLg">8</x:Double>
+    <x:Double x:Key="RadiusXl">12</x:Double>
 
-    <!-- 卡片阴影 -->
-    <x:Double x:Key="ShadowSmOffsetX">0</x:Double>
-    <x:Double x:Key="ShadowSmOffsetY">1</x:Double>
+    <!-- ============================== -->
+    <!-- FluentTheme 暗色覆盖            -->
+    <!-- ============================== -->
+    <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{StaticResource ColorBgBase}"/>
+    <SolidColorBrush x:Key="SystemControlBackgroundBaseHighBrush" Color="{StaticResource ColorBgSurface}"/>
+    <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumBrush" Color="{StaticResource ColorBgSurfaceAlt}"/>
+    <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{StaticResource ColorTextPrimary}"/>
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{StaticResource ColorTextSecondary}"/>
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumLowBrush" Color="{StaticResource ColorTextMuted}"/>
+    <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="{StaticResource ColorPrimary}"/>
+    <SolidColorBrush x:Key="SystemControlHighlightBaseHighBrush" Color="{StaticResource ColorPrimary}"/>
+    <SolidColorBrush x:Key="SystemControlHighlightListLowBrush" Color="{StaticResource ColorPrimaryGhost}"/>
+    <SolidColorBrush x:Key="SystemControlHighlightListMediumBrush" Color="{StaticResource ColorPrimaryGhostHover}"/>
 
 </ResourceDictionary>
