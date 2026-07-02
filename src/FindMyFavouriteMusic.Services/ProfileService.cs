@@ -179,11 +179,23 @@ public class ProfileService : IProfileService
             updatedAcoustic = IncrementalMean(currentAcoustic, newVector, previousCount);
         }
 
+        // 深度均值更新：需处理画像尚未建立深度均值的过渡场景
+        // 场景：用户先在无模型状态下扫描并喜欢歌曲（画像仅有声学均值），
+        // 之后加载模型并喜欢有深度向量的新歌曲，此时画像深度均量为 null。
+        // 若不处理，深度均值将永远不会被建立，导致预测始终走声学模式。
         float[]? updatedDeep = null;
         if (currentDeep is not null && song.DeepVectorBlob is not null)
         {
+            // 两者都有：Welford 增量更新
             var newDeepVector = _vectorSerializer.Deserialize(song.DeepVectorBlob);
             updatedDeep = IncrementalMean(currentDeep, newDeepVector, previousCount);
+        }
+        else if (currentDeep is null && song.DeepVectorBlob is not null)
+        {
+            // 画像无深度均值但新歌曲有深度向量：触发全量重建以正确建立深度均值
+            // 全量重建会遍历所有喜欢歌曲的深度向量，确保均值样本数与实际一致
+            _logger.LogInformation("画像尚无深度均值，新歌曲包含深度向量，触发全量重建以建立深度均值");
+            return await RebuildProfileAsync();
         }
 
         var updatedProfile = new UserProfile

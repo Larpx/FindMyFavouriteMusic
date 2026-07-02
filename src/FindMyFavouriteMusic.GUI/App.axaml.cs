@@ -15,6 +15,8 @@ using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI;
 
@@ -36,6 +38,16 @@ public partial class App : Application
     {
         _host = CreateHost();
 
+        // 必须显式启动 Host，否则注册为 IHostedService 的服务（如 DatabaseInitializer）不会执行，
+        // 将导致数据库表未创建，后续扫描目录时所有入库操作都会因 "no such table" 而失败，
+        // 最终表现为"扫描完成，共 0 首歌曲"。
+        _host.StartAsync().GetAwaiter().GetResult();
+
+        // 启动时自动加载深度模型：若配置启用了深度特征且指定了模型路径，则自动加载模型
+        // 这样用户首次配置好模型后，后续每次启动无需手动到设置页点击"加载模型"按钮
+        // 加载失败不阻断启动，仅记录日志，用户仍可手动到设置页加载
+        AutoLoadDeepModel(_host.Services);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainViewModel = _host.Services.GetRequiredService<MainWindowViewModel>();
@@ -48,6 +60,60 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// 启动时自动加载深度学习模型。
+    /// </summary>
+    /// <remarks>
+    /// 仅当配置中 EnableDeepFeatures=true 且对应模型路径非空且文件存在时才尝试加载。
+    /// 加载为 CPU 密集型操作（可能数秒），此处同步执行以保证主窗口显示前模型已就绪，
+    /// 避免用户在模型尚未加载完成时扫描歌曲导致深度特征缺失。
+    /// 失败仅记录日志，不阻断应用启动。
+    /// </remarks>
+    /// <param name="serviceProvider">DI 容器，用于获取配置和提取器</param>
+    private static void AutoLoadDeepModel(IServiceProvider serviceProvider)
+    {
+        try
+        {
+            var onnxOptions = serviceProvider.GetRequiredService<IOptionsMonitor<OnnxModelOptions>>().CurrentValue;
+            if (!onnxOptions.EnableDeepFeatures)
+            {
+                return;
+            }
+
+            var deepExtractor = serviceProvider.GetRequiredService<IDeepFeatureExtractor>();
+            var logger = serviceProvider.GetRequiredService<ILogger<App>>();
+
+            // 根据模型类型选择路径，路径为空或文件不存在则跳过
+            var modelPath = onnxOptions.ModelType == DeepModelType.MERT
+                ? onnxOptions.MertModelPath
+                : onnxOptions.VggishModelPath;
+
+            if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
+            {
+                logger.LogWarning("自动加载模型跳过：模型路径无效或文件不存在: {Path}", modelPath);
+                return;
+            }
+
+            logger.LogInformation("启动时自动加载深度模型: Type={Type}, Path={Path}", onnxOptions.ModelType, modelPath);
+            var result = deepExtractor.LoadModel(modelPath, onnxOptions.ModelType);
+            if (result.IsSuccess)
+            {
+                logger.LogInformation("深度模型自动加载成功: {Type}（{Dim} 维）",
+                    onnxOptions.ModelType, deepExtractor.FeatureDimension);
+            }
+            else
+            {
+                logger.LogWarning("深度模型自动加载失败: {Error}", result.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 任何异常都不应阻断应用启动，用户仍可手动加载
+            var logger = serviceProvider.GetService<ILogger<App>>();
+            logger?.LogError(ex, "自动加载深度模型时发生异常");
+        }
     }
 
     /// <summary>
@@ -116,9 +182,11 @@ public partial class App : Application
             .Build();
     }
 
-    /// <summary>应用退出时释放 Host 资源</summary>
+    /// <summary>应用退出时停止 HostedService 并释放 Host 资源</summary>
     private void OnExit(object? sender, EventArgs e)
     {
+        // 与 StartAsync 对应，触发 IHostedService.StopAsync 完成优雅关闭
+        _host?.StopAsync().GetAwaiter().GetResult();
         _host?.Dispose();
     }
 }

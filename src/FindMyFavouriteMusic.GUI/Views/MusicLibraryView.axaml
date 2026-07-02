@@ -49,8 +49,20 @@
             </Grid>
         </StackPanel>
 
+        <!-- 拖拽提示 -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="支持拖拽文件夹到下方列表区域快速扫描"
+                   Foreground="{StaticResource BrushTextMuted}"
+                   FontSize="{StaticResource TextXs}"
+                   Margin="0,4,0,8"/>
+
         <!-- 歌曲列表 -->
-        <Border Classes="card" Padding="0">
+        <Border Classes="card" Padding="0"
+                DragDrop.AllowDrop="True"
+                DragDrop.DragEnter="OnFolderDragEnter"
+                DragDrop.DragLeave="OnFolderDragLeave"
+                DragDrop.Drop="OnFolderDrop"
+                x:Name="FolderDropZone">
             <DataGrid ItemsSource="{Binding Songs}" AutoGenerateColumns="False"
                       CanUserResizeColumns="True" IsReadOnly="True"
                       SelectionMode="Single" GridLinesVisibility="Horizontal"

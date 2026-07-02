@@ -78,6 +78,28 @@ public class UserSettingsService : IUserSettingsService
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Result> SaveLastScanDirectoryAsync(string? directoryPath)
+    {
+        try
+        {
+            var root = await ReadRootAsync();
+            var scan = root[nameof(JsonKeys.Scan)] as JsonObject ?? new JsonObject();
+            // 空字符串视为未设置，统一存为 null 保持配置语义清晰
+            scan[nameof(JsonKeys.LastScanDirectory)] = string.IsNullOrWhiteSpace(directoryPath) ? null : directoryPath;
+            root[nameof(JsonKeys.Scan)] = scan;
+
+            await WriteRootAsync(root);
+            _logger.LogInformation("扫描目录已保存: {Directory}", directoryPath ?? "(空)");
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存扫描目录失败");
+            return Result.Failure(ex);
+        }
+    }
+
     /// <summary>读取现有配置根节点；文件不存在时返回空对象。</summary>
     private async Task<JsonObject> ReadRootAsync()
     {
@@ -113,5 +135,7 @@ public class UserSettingsService : IUserSettingsService
         public const string ModelType = "ModelType";
         public const string VggishModelPath = "VggishModelPath";
         public const string MertModelPath = "MertModelPath";
+        public const string Scan = "Scan";
+        public const string LastScanDirectory = "LastScanDirectory";
     }
 }

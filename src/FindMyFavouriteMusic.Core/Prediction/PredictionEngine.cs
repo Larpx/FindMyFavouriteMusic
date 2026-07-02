@@ -85,6 +85,25 @@ public class PredictionEngine
                               && deepVector is not null
                               && profileDeepVector is not null;
 
+        // 诊断日志：当深度特征不可用时记录具体原因，便于排查"声学模式"问题
+        if (!useDeepFeatures)
+        {
+            var reasons = new List<string>();
+            if (!_deepFeatureExtractor.IsModelLoaded)
+            {
+                reasons.Add("深度模型未加载");
+            }
+            if (deepVector is null)
+            {
+                reasons.Add("待预测歌曲无深度向量");
+            }
+            if (profileDeepVector is null)
+            {
+                reasons.Add("用户画像无深度均值向量");
+            }
+            _logger.LogWarning("深度特征不可用，降级为仅声学模式。原因: {Reasons}", string.Join("; ", reasons));
+        }
+
         if (useDeepFeatures)
         {
             // 计算深度特征相似度

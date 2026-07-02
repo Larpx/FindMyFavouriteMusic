@@ -90,9 +90,17 @@ public class MusicLibraryService : IMusicLibraryService
 
         try
         {
+            // 防御性检查：配置缺失时 SupportedExtensions 可能为空，回退到默认值
+            var extensions = _scanOptions.SupportedExtensions;
+            if (extensions is null || extensions.Count == 0)
+            {
+                extensions = [".mp3", ".wav", ".flac", ".ogg", ".m4a"];
+                _logger.LogWarning("ScanOptions.SupportedExtensions 为空，使用默认扩展名列表");
+            }
+
             // 枚举所有文件并按配置的扩展名白名单过滤，使用 OrdinalIgnoreCase 保证跨平台一致性
             var files = Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
-                .Where(f => _scanOptions.SupportedExtensions.Contains(
+                .Where(f => extensions.Contains(
                     Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
                 .ToList();
 
@@ -237,6 +245,8 @@ public class MusicLibraryService : IMusicLibraryService
     /// <returns>入库后的歌曲 DTO</returns>
     /// <remarks>
     /// 幂等性设计：先按 FilePath 查询，若已存在则直接返回，避免重复解码与特征提取。
+    /// 例外：若已入库歌曲缺少深度向量且当前模型已加载（典型场景：先无模型扫描入库，
+    /// 之后加载模型再重新扫描），则补全深度特征并更新数据库，避免历史歌曲永远无法参与深度预测。
     /// 解码失败时不阻断流程，仅不填充特征向量，仍将基础信息入库以便后续手动补全。
     /// </remarks>
     /// <inheritdoc/>
@@ -244,11 +254,21 @@ public class MusicLibraryService : IMusicLibraryService
     {
         try
         {
-            // 幂等性检查：已入库的歌曲直接返回，避免重复解码开销
+            // 幂等性检查：已入库的歌曲判断是否需要补全深度特征
             var existingResult = await _songRepository.GetByFilePathAsync(filePath);
             if (existingResult.IsSuccess && existingResult.Value is not null)
             {
-                return Result<SongDto>.Success(MapToDto(existingResult.Value));
+                var existing = existingResult.Value;
+                // 补全场景：歌曲已入库但无深度向量，且当前模型已加载
+                // 触发场景：用户先在无模型状态下扫描入库，之后加载模型重新扫描
+                if (existing.DeepVectorBlob is null && _deepExtractor.IsModelLoaded)
+                {
+                    _logger.LogInformation("补全歌曲深度特征: {FilePath}", filePath);
+                    var supplemented = await SupplementDeepVectorAsync(existing, ct);
+                    return Result<SongDto>.Success(MapToDto(supplemented));
+                }
+
+                return Result<SongDto>.Success(MapToDto(existing));
             }
 
             // 构造新歌曲实体，标题默认取文件名（无扩展名），艺术家暂留空待元数据补全
@@ -303,6 +323,58 @@ public class MusicLibraryService : IMusicLibraryService
         {
             _logger.LogError(ex, "处理歌曲失败: {FilePath}", filePath);
             return Result<SongDto>.Failure(ex);
+        }
+    }
+
+    /// <summary>
+    /// 为已入库但缺少深度向量的歌曲补全深度特征。
+    /// </summary>
+    /// <param name="song">已入库的歌曲实体（含 Id 与 FilePath）</param>
+    /// <param name="ct">取消令牌</param>
+    /// <returns>补全深度向量后的歌曲实体（已更新到数据库）</returns>
+    /// <remarks>
+    /// 补全流程：解码音频 → 提取深度特征 → 序列化为 BLOB → 更新数据库。
+    /// 解码或提取失败时返回原歌曲实体（不更新数据库），保证可用性优先。
+    /// </remarks>
+    private async Task<Song> SupplementDeepVectorAsync(Song song, CancellationToken ct)
+    {
+        try
+        {
+            var decodeResult = await _audioDecoder.DecodeAsync(song.FilePath, ct);
+            if (!decodeResult.IsSuccess || decodeResult.Value is null)
+            {
+                _logger.LogWarning("补全深度特征时解码失败: {FilePath}, {Error}", song.FilePath, decodeResult.Error);
+                return song;
+            }
+
+            var samples = decodeResult.Value;
+            var deepResult = await _deepExtractor.ExtractAsync(samples, _featureOptions.TargetSampleRate, ct);
+            if (!deepResult.IsSuccess || deepResult.Value is null)
+            {
+                _logger.LogWarning("补全深度特征时提取失败: {FilePath}, {Error}", song.FilePath, deepResult.Error);
+                return song;
+            }
+
+            // 序列化深度向量并更新数据库
+            song.DeepVector = deepResult.Value;
+            song.DeepVectorBlob = _vectorSerializer.Serialize(deepResult.Value);
+
+            // 仅更新深度向量字段，保留原声学向量与喜欢状态
+            var updateResult = await _songRepository.UpdateVectorsAsync(
+                song.Id, song.AcousticVectorBlob, song.DeepVectorBlob);
+            if (!updateResult.IsSuccess)
+            {
+                _logger.LogWarning("更新深度向量到数据库失败: {FilePath}, {Error}", song.FilePath, updateResult.Error);
+                // 数据库更新失败时仍返回带深度向量的实体，调用方本次能用到深度特征
+            }
+
+            _logger.LogInformation("歌曲深度特征补全成功: {FilePath}", song.FilePath);
+            return song;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "补全深度特征异常: {FilePath}", song.FilePath);
+            return song;
         }
     }
 

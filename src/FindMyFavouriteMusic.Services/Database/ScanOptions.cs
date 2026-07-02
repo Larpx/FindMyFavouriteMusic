@@ -12,4 +12,13 @@ public class ScanOptions
 
     /// <summary>最大并发处理数</summary>
     public int MaxConcurrentProcessing { get; set; } = 2;
+
+    /// <summary>
+    /// 上次扫描的音乐库目录路径，用于程序启动时自动重新扫描。
+    /// </summary>
+    /// <remarks>
+    /// 该字段由 UserSettingsService 持久化到 usersettings.json，
+    /// 首次扫描时为 null，用户完成首次扫描后自动保存，后续启动时自动读取并触发后台扫描。
+    /// </remarks>
+    public string? LastScanDirectory { get; set; }
 }

@@ -18,6 +18,9 @@
 
     <Application.Styles>
         <FluentTheme />
+        <!-- DataGrid 主题必须单独引用，否则 DataGrid 控件没有默认 ControlTemplate，
+             会导致绑定的数据行无法渲染（表现为列表区域空白） -->
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
         <StyleInclude Source="/Styles/AppTheme.axaml"/>
     </Application.Styles>
 </Application>

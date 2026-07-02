@@ -80,7 +80,12 @@
             <!-- ======================================================== -->
             <!-- 深度学习模型                                               -->
             <!-- ======================================================== -->
-            <Border Classes="card">
+            <Border Classes="card"
+                    DragDrop.AllowDrop="True"
+                    DragDrop.DragEnter="OnModelDragEnter"
+                    DragDrop.DragLeave="OnModelDragLeave"
+                    DragDrop.Drop="OnModelDrop"
+                    x:Name="ModelDropZone">
                 <StackPanel Spacing="16">
                     <TextBlock Text="深度学习模型" Classes="section-title"/>
 
@@ -145,7 +150,7 @@
                     <StackPanel Spacing="6">
                         <TextBlock Text="VGGish 模型文件路径" Classes="label-text"/>
                         <TextBox Text="{Binding VggishModelPath}"
-                                 PlaceholderText="例如: C:\Models\vggish.onnx"
+                                 PlaceholderText="拖拽 .onnx 文件到本区域，或手动输入路径"
                                  Classes="sci-input"/>
                     </StackPanel>
 
@@ -153,9 +158,14 @@
                     <StackPanel Spacing="6">
                         <TextBlock Text="MERT 模型文件路径" Classes="label-text"/>
                         <TextBox Text="{Binding MertModelPath}"
-                                 PlaceholderText="例如: C:\Models\mert_v1_95M.onnx"
+                                 PlaceholderText="拖拽 .onnx 文件到本区域，或手动输入路径"
                                  Classes="sci-input"/>
                     </StackPanel>
+
+                    <!-- 拖拽提示 -->
+                    <TextBlock Text="支持拖拽 .onnx 模型文件到本区域，自动识别模型类型并填充路径"
+                               Foreground="{StaticResource BrushTextMuted}"
+                               FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
 
                     <!-- 操作按钮 -->
                     <StackPanel Orientation="Horizontal" Spacing="8">

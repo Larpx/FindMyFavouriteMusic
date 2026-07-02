@@ -125,6 +125,11 @@ public class PredictionService : IPredictionService
             {
                 deepVector = deepResult.Value;
             }
+            else
+            {
+                // 记录警告便于排查：模型已加载但特征提取失败，常见于音频过短或模型推理异常
+                _logger.LogWarning("深度特征提取失败，将降级为仅声学模式: {Error}", deepResult.Error);
+            }
         }
 
         // 步骤 5：反序列化画像均值向量（BLOB → float[]）

@@ -19,4 +19,10 @@ public interface IUserSettingsService
     /// <param name="vggishModelPath">VGGish 模型文件路径，可为 null</param>
     /// <param name="mertModelPath">MERT 模型文件路径，可为 null</param>
     Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath);
+
+    /// <summary>
+    /// 保存上次扫描的音乐库目录路径，供下次启动时自动重新扫描。
+    /// </summary>
+    /// <param name="directoryPath">扫描目录路径，传入 null 或空字符串可清除记录</param>
+    Task<Result> SaveLastScanDirectoryAsync(string? directoryPath);
 }

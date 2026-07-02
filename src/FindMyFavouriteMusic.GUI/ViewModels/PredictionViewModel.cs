@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
@@ -15,8 +16,9 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels;
 /// 通过 <see cref="RelayCommandAttribute"/> 暴露预测和文件选择命令供 View 触发。
 /// 业务逻辑委托给 <see cref="IPredictionService"/>（特征提取与匹配）和 <see cref="IProfileService"/>（用户画像检查）。
 /// <para>
-/// 与 <c>MusicLibraryViewModel</c> 一样，采用 FilePicker 回调模式避免直接依赖 Avalonia 的 StorageProvider，
-/// 保持 ViewModel 与 UI 框架解耦。
+/// 模式显示策略：构造时根据模型加载状态设置初始模式标签，
+/// 模型已加载显示"深度模式"，否则显示"声学模式"；
+/// 预测完成后根据实际使用的模式更新标签。
 /// </para>
 /// </remarks>
 public partial class PredictionViewModel : ViewModelBase
@@ -25,6 +27,8 @@ public partial class PredictionViewModel : ViewModelBase
     private readonly IPredictionService _predictionService;
     // 画像服务：用于检查用户是否已建立喜好画像，通过 DI 注入
     private readonly IProfileService _profileService;
+    // 深度特征提取器：用于检查模型是否已加载，据此显示初始模式标签
+    private readonly IDeepFeatureExtractor _deepExtractor;
     // 日志记录器：用于记录异常和关键操作
     private readonly ILogger<PredictionViewModel> _logger;
     // 对话框服务：用于向用户弹出操作反馈
@@ -46,18 +50,25 @@ public partial class PredictionViewModel : ViewModelBase
     /// </summary>
     /// <param name="predictionService">预测服务</param>
     /// <param name="profileService">用户画像服务</param>
+    /// <param name="deepExtractor">深度特征提取器，用于检查模型加载状态</param>
     /// <param name="logger">日志记录器</param>
     /// <param name="dialogService">对话框服务</param>
     public PredictionViewModel(
         IPredictionService predictionService,
         IProfileService profileService,
+        IDeepFeatureExtractor deepExtractor,
         ILogger<PredictionViewModel> logger,
         IDialogService dialogService)
     {
         _predictionService = predictionService;
         _profileService = profileService;
+        _deepExtractor = deepExtractor;
         _logger = logger;
         _dialogService = dialogService;
+
+        // 根据模型加载状态设置初始模式标签：模型已加载显示"深度模式"，否则显示"声学模式"
+        // 预测完成后会根据实际使用的模式更新此标签
+        _currentMode = _deepExtractor.IsModelLoaded ? "深度模式" : "声学模式";
     }
 
     /// <summary>
@@ -162,7 +173,12 @@ public partial class PredictionViewModel : ViewModelBase
                 // 深度得分可空：仅声学模式下为 null，需特殊处理避免对 null 调用 Round
                 DeepScore = prediction.DeepScore.HasValue ? Math.Round(prediction.DeepScore.Value, 1) : null;
                 // 将预测模式枚举映射为用户友好的中文显示文本
-                CurrentMode = prediction.Mode == PredictionMode.AcousticAndDeep ? "深度增强模式" : "声学模式";
+                // 深度模式可用但降级为声学时显示"声学模式（降级）"，让用户知道发生了降级
+                CurrentMode = prediction.Mode == PredictionMode.AcousticAndDeep
+                    ? "深度模式"
+                    : _deepExtractor.IsModelLoaded
+                        ? "声学模式（降级）"
+                        : "声学模式";
                 StatusMessage = $"预测完成: {prediction.SongTitle} - 匹配度 {PredictionScore}%";
                 await _dialogService.ShowSuccessAsync("预测完成",
                     $"{prediction.SongTitle}\n匹配度: {PredictionScore}%");

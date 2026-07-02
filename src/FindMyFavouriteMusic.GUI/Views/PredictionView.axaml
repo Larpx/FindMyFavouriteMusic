@@ -54,7 +54,7 @@
                                     Width="140" Height="140">
                             <!-- 得分环形区域 -->
                             <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <TextBlock Text="{Binding PredictionScore, StringFormat='{}{0:F1}'}"
+                                <TextBlock Text="{Binding PredictionScore, StringFormat='{}{0:F1}%'}"
                                            FontSize="{StaticResource Text3xl}"
                                            FontWeight="Bold"
                                            Foreground="{Binding PredictionScore, Converter={StaticResource ScoreToColorConverter}}"
