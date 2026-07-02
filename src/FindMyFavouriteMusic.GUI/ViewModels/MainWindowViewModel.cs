@@ -45,8 +45,8 @@ public partial class MainWindowViewModel : ViewModelBase
         MusicLibraryViewModel = musicLibraryViewModel;
         PredictionViewModel = predictionViewModel;
         SettingsViewModel = settingsViewModel;
-        // 默认显示音乐库页
-        _currentPage = MusicLibraryViewModel;
+        // 默认显示预测页（用户最常用的功能）
+        _currentPage = PredictionViewModel;
     }
 
     /// <summary>

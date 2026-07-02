@@ -202,4 +202,126 @@ public class PredictionService : IPredictionService
         // 回退路径：无存储特征，按文件路径走完整解码流程
         return await PredictAsync(song.FilePath, ct);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<PredictionResult>> PredictWithProgressAsync(
+        string filePath, IProgress<int>? progress, CancellationToken ct = default)
+    {
+        try
+        {
+            progress?.Report(0);
+
+            // 步骤 1：获取用户画像（~5%）
+            var profileResult = await _profileRepository.GetAsync();
+            if (!profileResult.IsSuccess)
+            {
+                return Result<PredictionResult>.Failure(profileResult.Error!, profileResult.Exception);
+            }
+
+            var profile = profileResult.Value;
+            if (profile?.AcousticMeanVectorBlob is null)
+            {
+                return Result<PredictionResult>.Failure("用户画像尚未构建，请先标记喜欢的歌曲");
+            }
+
+            progress?.Report(5);
+
+            // 步骤 2：解码音频文件（5%-25%）
+            var decodeResult = await _audioDecoder.DecodeAsync(filePath, ct);
+            if (!decodeResult.IsSuccess)
+            {
+                return Result<PredictionResult>.Failure(decodeResult.Error!, decodeResult.Exception);
+            }
+
+            progress?.Report(25);
+
+            // 步骤 3：提取声学特征（25%-50%）
+            var samples = decodeResult.Value!;
+            var acousticResult = _acousticExtractor.Extract(samples, _featureOptions.TargetSampleRate);
+            if (!acousticResult.IsSuccess)
+            {
+                return Result<PredictionResult>.Failure(acousticResult.Error!, acousticResult.Exception);
+            }
+
+            progress?.Report(50);
+
+            // 步骤 4：深度特征提取（50%-75%）
+            float[]? deepVector = null;
+            if (_deepExtractor.IsModelLoaded)
+            {
+                var deepResult = await _deepExtractor.ExtractAsync(samples, _featureOptions.TargetSampleRate, ct);
+                if (deepResult.IsSuccess)
+                {
+                    deepVector = deepResult.Value;
+                }
+                else
+                {
+                    _logger.LogWarning("深度特征提取失败，将降级为仅声学模式: {Error}", deepResult.Error);
+                }
+            }
+
+            progress?.Report(75);
+
+            // 步骤 5：反序列化画像向量 + 计算相似度（75%-100%）
+            var profileAcoustic = _vectorSerializer.Deserialize(profile.AcousticMeanVectorBlob);
+            float[]? profileDeep = profile.DeepMeanVectorBlob is not null
+                ? _vectorSerializer.Deserialize(profile.DeepMeanVectorBlob)
+                : null;
+
+            progress?.Report(90);
+
+            var prediction = _predictionEngine.Predict(
+                acousticResult.Value!, deepVector, profileAcoustic, profileDeep);
+
+            if (prediction.IsSuccess && prediction.Value is not null)
+            {
+                prediction.Value.SongTitle = Path.GetFileNameWithoutExtension(filePath);
+            }
+
+            progress?.Report(100);
+            return prediction;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "带进度的预测失败: {FilePath}", filePath);
+            return Result<PredictionResult>.Failure(ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Result<PredictionResult>>> PredictBatchAsync(
+        IReadOnlyList<string> filePaths, IProgress<int>? progress, CancellationToken ct = default)
+    {
+        var results = new Result<PredictionResult>[filePaths.Count];
+        var completed = 0;
+
+        for (var i = 0; i < filePaths.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // 单文件内部进度映射到整体进度的对应区间
+            // 例如 3 个文件：文件1 占 0-33%，文件2 占 33-66%，文件3 占 66-100%
+            var startPercent = (int)Math.Floor((double)completed / filePaths.Count * 100);
+            var endPercent = (int)Math.Floor((double)(completed + 1) / filePaths.Count * 100);
+
+            var fileProgress = new Progress<int>(p =>
+            {
+                // 将单文件进度（0-100）映射到整体进度的对应子区间
+                var overallPercent = startPercent + (int)Math.Round((double)p / 100 * (endPercent - startPercent));
+                progress?.Report(overallPercent);
+            });
+
+            results[i] = await PredictWithProgressAsync(filePaths[i], fileProgress, ct);
+            completed++;
+
+            // 每完成一个文件，确保整体进度更新
+            progress?.Report((int)Math.Floor((double)completed / filePaths.Count * 100));
+        }
+
+        return results;
+    }
 }
