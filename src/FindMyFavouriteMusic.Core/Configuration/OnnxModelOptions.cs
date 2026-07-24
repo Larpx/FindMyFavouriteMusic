@@ -18,6 +18,16 @@ public class OnnxModelOptions
 
     /// <summary>是否启用深度特征提取</summary>
     public bool EnableDeepFeatures { get; set; }
+
+    /// <summary>
+    /// 是否优先使用 NPU/GPU 加速推理（DirectML EP）。
+    /// </summary>
+    /// <remarks>
+    /// <para>默认 true：启动时检测到 NPU 后自动尝试通过 DirectML EP 加载模型；</para>
+    /// <para>设为 false 时强制使用 CPU EP，便于调试与对比性能。</para>
+    /// <para>注意：实际是否使用 NPU 取决于运行时检测与 DirectML 加载是否成功，本开关仅控制是否尝试。</para>
+    /// </remarks>
+    public bool PreferNpu { get; set; } = true;
 }
 
 /// <summary>

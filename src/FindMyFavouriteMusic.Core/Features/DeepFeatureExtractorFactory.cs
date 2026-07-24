@@ -1,4 +1,5 @@
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -29,19 +30,21 @@ public class DeepFeatureExtractorFactory : IDeepFeatureExtractor
     /// 构造工厂，创建 VGGish 与 MERT 两个提取器实例，并根据配置选择默认活跃提取器。
     /// </summary>
     /// <param name="options">ONNX 模型配置</param>
+    /// <param name="accelerator">硬件加速器，传递给子提取器用于 NPU/GPU EP 配置</param>
     /// <param name="loggerFactory">日志工厂，用于创建子提取器的 logger</param>
     /// <param name="logger">工厂自身日志</param>
     public DeepFeatureExtractorFactory(
         IOptions<OnnxModelOptions> options,
+        IHardwareAccelerator accelerator,
         ILoggerFactory loggerFactory,
         ILogger<DeepFeatureExtractorFactory> logger)
     {
         _logger = logger;
 
         // 预创建两个提取器，各自仅在配置匹配时自动加载模型，开销可忽略
-        _vggishExtractor = new DeepFeatureExtractor(options,
+        _vggishExtractor = new DeepFeatureExtractor(options, accelerator,
             loggerFactory.CreateLogger<DeepFeatureExtractor>());
-        _mertExtractor = new MertFeatureExtractor(options,
+        _mertExtractor = new MertFeatureExtractor(options, accelerator,
             loggerFactory.CreateLogger<MertFeatureExtractor>());
 
         // 根据配置选择默认活跃提取器

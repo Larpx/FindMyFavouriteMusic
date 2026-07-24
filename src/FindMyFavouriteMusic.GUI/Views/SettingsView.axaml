@@ -213,6 +213,13 @@
                                 </TextBlock.Text>
                             </TextBlock>
                         </Border>
+                        <!-- NPU 检测结果与当前 EP（只读展示，不允许手动切换） -->
+                        <Border Background="{StaticResource BrushPrimaryGhost}"
+                                CornerRadius="4" Padding="8,4">
+                            <TextBlock Text="{Binding AcceleratorStatusInfo}"
+                                       Foreground="{StaticResource BrushPrimary}"
+                                       FontSize="{StaticResource TextSm}" FontWeight="Medium"/>
+                        </Border>
                     </StackPanel>
                 </StackPanel>
             </Border>

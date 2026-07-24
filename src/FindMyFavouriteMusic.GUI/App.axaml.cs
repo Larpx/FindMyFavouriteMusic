@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Prediction;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
@@ -100,8 +101,10 @@ public partial class App : Application
             var result = deepExtractor.LoadModel(modelPath, onnxOptions.ModelType);
             if (result.IsSuccess)
             {
-                logger.LogInformation("深度模型自动加载成功: {Type}（{Dim} 维）",
-                    onnxOptions.ModelType, deepExtractor.FeatureDimension);
+                // 通过硬件加速器读取实际生效的 EP，告知用户当前推理设备
+                var accelerator = serviceProvider.GetRequiredService<IHardwareAccelerator>();
+                logger.LogInformation("深度模型自动加载成功: {Type}（{Dim} 维, EP={EP}）",
+                    onnxOptions.ModelType, deepExtractor.FeatureDimension, accelerator.ActiveExecutionProvider);
             }
             else
             {
@@ -149,6 +152,8 @@ public partial class App : Application
                 // Core 层：音频解码、特征提取、相似度计算
                 services.AddSingleton<IAudioDecoder, AudioDecoder>();
                 services.AddSingleton<IAcousticFeatureExtractor, AcousticFeatureExtractor>();
+                // 硬件加速器：单例，启动时检测 NPU，供提取器与设置页共享检测结果
+                services.AddSingleton<IHardwareAccelerator, HardwareAccelerator>();
                 services.AddSingleton<IDeepFeatureExtractor, DeepFeatureExtractorFactory>();
                 services.AddSingleton<IFeatureAggregator, FeatureAggregator>();
                 services.AddSingleton<ISimilarityCalculator, CosineSimilarityCalculator>();

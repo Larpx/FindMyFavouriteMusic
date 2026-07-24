@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Core 使用 System.Management (Windows-only) 与 DirectML EP，需统一为 Windows TFM -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />
   </ItemGroup>
@@ -11,7 +16,8 @@
     <PackageReference Include="NAudio" />
     <PackageReference Include="NAudio.Vorbis" />
     <PackageReference Include="NWaves" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
+    <PackageReference Include="System.Management" />
     <PackageReference Include="MathNet.Numerics" />
   </ItemGroup>
 

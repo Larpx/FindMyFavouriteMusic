@@ -1,4 +1,5 @@
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -29,6 +30,7 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
 {
     private readonly OnnxModelOptions _options;
     private readonly ILogger<MertFeatureExtractor> _logger;
+    private readonly IHardwareAccelerator _accelerator;
     private InferenceSession? _session;
 
     /// <summary>MERT 输出嵌入向量的维度</summary>
@@ -47,12 +49,15 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// 构造 MERT 特征提取器，并按配置自动加载模型。
     /// </summary>
     /// <param name="options">ONNX 模型配置</param>
+    /// <param name="accelerator">硬件加速器，用于配置 DirectML EP 以启用 NPU/GPU 加速。</param>
     /// <param name="logger">日志记录器</param>
     public MertFeatureExtractor(
         IOptions<OnnxModelOptions> options,
+        IHardwareAccelerator accelerator,
         ILogger<MertFeatureExtractor> logger)
     {
         _options = options.Value;
+        _accelerator = accelerator;
         _logger = logger;
 
         // 如果配置中启用了深度特征且有 MERT 模型路径，自动加载
@@ -80,6 +85,10 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// <param name="modelPath">ONNX 模型文件的绝对路径。</param>
     /// <param name="modelType">模型类型（由工厂传入，本提取器固定为 MERT，忽略此参数）。</param>
     /// <returns>加载结果</returns>
+    /// <remarks>
+    /// <para>EP 选择流程：优先尝试通过 <see cref="IHardwareAccelerator"/> 配置 DirectML EP（NPU/GPU 加速）；
+    /// 若配置失败或异常，回退到默认 CPU EP 创建会话。</para>
+    /// </remarks>
     public Result LoadModel(string modelPath, DeepModelType modelType)
     {
         if (!File.Exists(modelPath))
@@ -89,8 +98,8 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
 
         try
         {
-            _session = new InferenceSession(modelPath);
-            _logger.LogInformation("MERT ONNX 模型加载成功: {ModelPath}", modelPath);
+            _session = CreateSession(modelPath);
+            _logger.LogInformation("MERT ONNX 模型加载成功: {ModelPath} (EP={EP})", modelPath, _accelerator.ActiveExecutionProvider);
             return Result.Success();
         }
         catch (Exception ex)
@@ -99,6 +108,32 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
             _logger.LogError(ex, "MERT ONNX 模型加载失败: {ModelPath}", modelPath);
             return Result.Failure(ex);
         }
+    }
+
+    /// <summary>
+    /// 创建推理会话：优先尝试 DirectML EP，失败回退 CPU EP。
+    /// </summary>
+    /// <param name="modelPath">ONNX 模型文件路径。</param>
+    /// <returns>已配置 EP 的 <see cref="InferenceSession"/> 实例。</returns>
+    private InferenceSession CreateSession(string modelPath)
+    {
+        // 优先尝试 DirectML EP：ConfigureSessionOptions 会在传入的 options 上追加 EP
+        var sessionOptions = new SessionOptions();
+        var epResult = _accelerator.ConfigureSessionOptions(sessionOptions);
+        if (epResult.IsSuccess)
+        {
+            try
+            {
+                return new InferenceSession(modelPath, sessionOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "DirectML EP 会话创建失败，回退到 CPU EP");
+            }
+        }
+
+        // 回退到 CPU EP：使用默认选项重新创建会话
+        return new InferenceSession(modelPath);
     }
 
     /// <summary>

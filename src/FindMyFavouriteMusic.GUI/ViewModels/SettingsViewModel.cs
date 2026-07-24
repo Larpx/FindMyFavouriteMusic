@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
@@ -22,6 +23,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IUserSettingsService _userSettingsService;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly IDialogService _dialogService;
+    private readonly IHardwareAccelerator _hardwareAccelerator;
 
     public SettingsViewModel(
         IDeepFeatureExtractor deepExtractor,
@@ -30,7 +32,8 @@ public partial class SettingsViewModel : ViewModelBase
         IProfileService profileService,
         IUserSettingsService userSettingsService,
         ILogger<SettingsViewModel> logger,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IHardwareAccelerator hardwareAccelerator)
     {
         _deepExtractor = deepExtractor;
         _onnxOptions = onnxOptions;
@@ -39,6 +42,7 @@ public partial class SettingsViewModel : ViewModelBase
         _userSettingsService = userSettingsService;
         _logger = logger;
         _dialogService = dialogService;
+        _hardwareAccelerator = hardwareAccelerator;
 
         // 从当前配置初始化 UI 显示值
         var currentOptions = _predictionOptions.CurrentValue;
@@ -51,6 +55,7 @@ public partial class SettingsViewModel : ViewModelBase
         _mertModelPath = onnxConfig.MertModelPath ?? string.Empty;
         _enableDeepFeatures = onnxConfig.EnableDeepFeatures;
         _isModelLoaded = deepExtractor.IsModelLoaded;
+        UpdateAcceleratorStatus();
     }
 
     /// <summary>声学特征相似度权重（与深度权重之和应为 1.0）</summary>
@@ -95,6 +100,17 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "就绪";
 
+    /// <summary>
+    /// NPU 检测结果与当前生效 EP 的合并显示文本，供设置页只读展示。
+    /// </summary>
+    /// <remarks>
+    /// <para>该属性在以下时机刷新：</para>
+    /// <para>- SettingsViewModel 构造完成时（启动后首次进入设置页）；</para>
+    /// <para>- LoadModelCommand 完成后（手动加载模型会改变实际生效的 EP）。</para>
+    /// </remarks>
+    [ObservableProperty]
+    private string _acceleratorStatusInfo = string.Empty;
+
     /// <summary>当前模型输出的特征维度</summary>
     public string FeatureDimensionInfo
     {
@@ -113,6 +129,18 @@ public partial class SettingsViewModel : ViewModelBase
     partial void OnIsModelLoadedChanged(bool value)
     {
         OnPropertyChanged(nameof(FeatureDimensionInfo));
+    }
+
+    /// <summary>
+    /// 从 <see cref="IHardwareAccelerator"/> 读取最新检测结果与生效 EP，刷新显示文本。
+    /// </summary>
+    /// <remarks>方法无副作用，仅更新 <see cref="AcceleratorStatusInfo"/> 属性。</remarks>
+    private void UpdateAcceleratorStatus()
+    {
+        var npuPart = _hardwareAccelerator.IsNpuAvailable
+            ? $"NPU 已检测到: {_hardwareAccelerator.NpuDeviceName}"
+            : "NPU 未检测到";
+        AcceleratorStatusInfo = $"{npuPart} | 当前推理设备: {_hardwareAccelerator.ActiveExecutionProvider}";
     }
 
     /// <summary>
@@ -152,11 +180,13 @@ public partial class SettingsViewModel : ViewModelBase
             // ONNX InferenceSession 构造为 CPU 密集型，用 Task.Run 避免阻塞 UI 线程
             var result = await Task.Run(() => _deepExtractor.LoadModel(modelPath, modelType));
             IsModelLoaded = _deepExtractor.IsModelLoaded;
+            // 加载完成后刷新 NPU/EP 状态显示，反映实际生效的推理设备
+            UpdateAcceleratorStatus();
             if (result.IsSuccess)
             {
-                StatusMessage = $"{SelectedModelType} 模型加载成功（{_deepExtractor.FeatureDimension} 维）";
+                StatusMessage = $"{SelectedModelType} 模型加载成功（{_deepExtractor.FeatureDimension} 维, EP={_hardwareAccelerator.ActiveExecutionProvider}）";
                 await _dialogService.ShowSuccessAsync("模型加载成功",
-                    $"{SelectedModelType} 模型已加载\n特征维度: {_deepExtractor.FeatureDimension} 维");
+                    $"{SelectedModelType} 模型已加载\n特征维度: {_deepExtractor.FeatureDimension} 维\n推理设备: {_hardwareAccelerator.ActiveExecutionProvider}");
             }
             else
             {

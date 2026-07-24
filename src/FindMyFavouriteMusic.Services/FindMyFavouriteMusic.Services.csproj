@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- 引用 Core (net10.0-windows)，需匹配 TFM -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\FindMyFavouriteMusic.Core\FindMyFavouriteMusic.Core.csproj" />
     <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />

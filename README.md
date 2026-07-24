@@ -162,6 +162,48 @@ Configuration is stored in `appsettings.json`:
 - `Larpx.PersonalTools.FindMyFavouriteMusic.Models`
 - `Larpx.PersonalTools.FindMyFavouriteMusic.GUI`
 
+## NPU 加速
+
+应用启动时会自动检测当前设备是否存在 NPU（通过 WMI 查询 `Intel(R) AI Boost` / `NPU` / `Neural Processing` 等设备名）。
+
+- 检测到 NPU 且 `OnnxModel.PreferNpu=true`（默认）时，深度模型推理会尝试通过 **DirectML Execution Provider** 加速（Windows 11 24H2+ 上 DirectML 12 会自动将支持的算子 offload 到 NPU）。
+- 未检测到 NPU、用户禁用 PreferNpu、或 DirectML EP 注册失败时，自动回退到 CPU EP，保证可用性。
+- 设置页"深度学习模型"卡片底部显示 NPU 检测结果与当前生效的推理设备（只读，不允许手动切换）。
+- 可在 `appsettings.json` / `usersettings.json` 中设置 `"OnnxModel": { "PreferNpu": false }` 强制使用 CPU。
+
+## TODO
+
+### 切换为 OpenVINO EP 以获得 Intel NPU 最优性能
+
+当前实现使用 DirectML EP，作为跨厂商通用加速方案。针对 Intel Core Ultra（Meteor Lake+）NPU，OpenVINO EP 是 Intel 官方最优支持方案，算子覆盖率与性能均优于 DirectML。后续可按以下步骤切换：
+
+1. **替换 NuGet 依赖**：
+   - 移除 `Microsoft.ML.OnnxRuntime.DirectML`
+   - 新增 `Intel.ML.OnnxRuntime.OpenVino`（与 `Microsoft.ML.OnnxRuntime` 同版本号 1.22.0）
+
+2. **改造 `HardwareAccelerator.ConfigureSessionOptions`**：
+   ```csharp
+   // OpenVINO EP 指定 NPU 设备
+   options.AppendExecutionProvider_OpenVINO("NPU");
+   ```
+   可选配置项：`device_type=NPU`、`precision=FP16`、`cache_dir`（编译缓存目录以加速二次启动）。
+
+3. **NPU 检测增强**：
+   OpenVINO 提供原生设备枚举 API，可替代 WMI 查询获取更准确的 NPU 设备名与算子支持情况。可改为尝试创建临时 OpenVINO NPU 会话验证可用性。
+
+4. **算子兼容性验证**：
+   VGGish 与 MERT 模型可能存在部分算子未被 OpenVINO NPU 支持，OpenVINO EP 会自动分区将不支持的算子回退到 CPU。需实测验证推理结果与 DirectML/CPU 一致，并对比性能。
+
+5. **包体积权衡**：
+   OpenVINO 运行时依赖约 100-200MB，需评估对安装包体积的影响。可考虑按需下载或拆分发布包。
+
+6. **回退策略保留**：
+   OpenVINO EP 加载失败时仍应回退到 CPU EP，保持现有 `ConfigureSessionOptions` 返回 `Result.Failure` 的优雅降级路径不变。
+
+参考资料：
+- [OpenVINO Execution Provider](https://onnxruntime.ai/docs/execution-providers/OpenVINO-ExecutionProvider.html)
+- [Windows ML Execution Providers](https://learn.microsoft.com/windows/ai/new-windows-ml/supported-execution-providers)
+
 ## License
 
 See the LICENSE file for details.

@@ -1,4 +1,5 @@
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
 {
     private readonly OnnxModelOptions _options;
     private readonly ILogger<DeepFeatureExtractor> _logger;
+    private readonly IHardwareAccelerator _accelerator;
     private InferenceSession? _session;
 
     /// <summary>
@@ -58,12 +60,15 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
     /// 构造深度特征提取器，并按配置自动加载 VGGish ONNX 模型。
     /// </summary>
     /// <param name="options">ONNX 模型配置（路径、是否启用等），通过 IOptions 模式注入。</param>
+    /// <param name="accelerator">硬件加速器，用于配置 DirectML EP 以启用 NPU/GPU 加速。</param>
     /// <param name="logger">日志记录器。</param>
     public DeepFeatureExtractor(
         IOptions<OnnxModelOptions> options,
+        IHardwareAccelerator accelerator,
         ILogger<DeepFeatureExtractor> logger)
     {
         _options = options.Value;
+        _accelerator = accelerator;
         _logger = logger;
 
         // 如果配置中启用了深度特征且有路径，自动加载模型
@@ -89,8 +94,12 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
     /// <param name="modelPath">ONNX 模型文件的绝对路径。</param>
     /// <param name="modelType">模型类型（由工厂传入，本提取器固定为 VGGish，忽略此参数）。</param>
     /// <returns>加载结果：成功返回 Success；文件不存在或加载异常时返回 Failure 并携带错误信息。</returns>
-    /// <remarks>加载失败时会将内部会话置为 null，确保 <see cref="IsModelLoaded"/> 状态与实际状态一致，
-    /// 触发上游的优雅降级逻辑。</remarks>
+    /// <remarks>
+    /// <para>EP 选择流程：优先尝试通过 <see cref="IHardwareAccelerator"/> 配置 DirectML EP（NPU/GPU 加速）；
+    /// 若配置失败或异常，回退到默认 CPU EP 创建会话。</para>
+    /// <para>加载失败时会将内部会话置为 null，确保 <see cref="IsModelLoaded"/> 状态与实际状态一致，
+    /// 触发上游的优雅降级逻辑。</para>
+    /// </remarks>
     public Result LoadModel(string modelPath, DeepModelType modelType)
     {
         if (!File.Exists(modelPath))
@@ -100,8 +109,8 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
 
         try
         {
-            _session = new InferenceSession(modelPath);
-            _logger.LogInformation("ONNX 模型加载成功: {ModelPath}", modelPath);
+            _session = CreateSession(modelPath);
+            _logger.LogInformation("ONNX 模型加载成功: {ModelPath} (EP={EP})", modelPath, _accelerator.ActiveExecutionProvider);
             return Result.Success();
         }
         catch (Exception ex)
@@ -111,6 +120,36 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
             _logger.LogError(ex, "ONNX 模型加载失败: {ModelPath}", modelPath);
             return Result.Failure(ex);
         }
+    }
+
+    /// <summary>
+    /// 创建推理会话：优先尝试 DirectML EP，失败回退 CPU EP。
+    /// </summary>
+    /// <param name="modelPath">ONNX 模型文件路径。</param>
+    /// <returns>已配置 EP 的 <see cref="InferenceSession"/> 实例。</returns>
+    /// <remarks>
+    /// <para>若 DirectML EP 配置成功，使用其 SessionOptions 创建会话；</para>
+    /// <para>若 DirectML EP 不可用或会话创建失败，捕获异常后用默认选项（CPU EP）重试一次，确保最大可用性。</para>
+    /// </remarks>
+    private InferenceSession CreateSession(string modelPath)
+    {
+        // 优先尝试 DirectML EP：ConfigureSessionOptions 会在传入的 options 上追加 EP
+        var sessionOptions = new SessionOptions();
+        var epResult = _accelerator.ConfigureSessionOptions(sessionOptions);
+        if (epResult.IsSuccess)
+        {
+            try
+            {
+                return new InferenceSession(modelPath, sessionOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "DirectML EP 会话创建失败，回退到 CPU EP");
+            }
+        }
+
+        // 回退到 CPU EP：使用默认选项重新创建会话
+        return new InferenceSession(modelPath);
     }
 
     /// <summary>
