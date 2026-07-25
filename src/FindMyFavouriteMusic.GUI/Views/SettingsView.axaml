@@ -162,6 +162,52 @@
                                  Classes="sci-input"/>
                     </StackPanel>
 
+                    <!-- ======================================================== -->
+                    <!-- 推理 EP（Execution Provider）选择                          -->
+                    <!-- ======================================================== -->
+                    <Border Background="{StaticResource BrushPrimaryGhost}" CornerRadius="6" Padding="12,10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="推理设备（Execution Provider）"
+                                       Foreground="{StaticResource BrushTextSecondary}"
+                                       FontSize="{StaticResource TextSm}" FontWeight="Medium"/>
+                            <TextBlock Text="选择 ONNX Runtime 推理使用的硬件加速方案。切换后需重启应用生效（native 库在启动时加载）。"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       FontSize="{StaticResource TextXs}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="EP 模式" Classes="label-text"/>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <RadioButton Content="CPU（纯 CPU 推理，兼容性最佳）"
+                                         IsChecked="{Binding SelectedExecutionProvider, Converter={StaticResource StringEqualsConverter}, ConverterParameter=CPU}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                            <RadioButton Content="OpenVINO 加速（Intel GPU/NPU/AUTO）"
+                                         IsChecked="{Binding SelectedExecutionProvider, Converter={StaticResource StringEqualsConverter}, ConverterParameter=OpenVINO}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8" IsEnabled="{Binding CanSelectOpenVinoDevice}">
+                        <TextBlock Text="OpenVINO 目标设备" Classes="label-text"/>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <RadioButton Content="GPU（默认，测试最优，MERT 2.24x 加速）"
+                                         IsChecked="{Binding SelectedOpenVinoDevice, Converter={StaticResource StringEqualsConverter}, ConverterParameter=GPU}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                            <RadioButton Content="NPU（Intel AI Boost）"
+                                         IsChecked="{Binding SelectedOpenVinoDevice, Converter={StaticResource StringEqualsConverter}, ConverterParameter=NPU}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                            <RadioButton Content="AUTO（自动选择）"
+                                         IsChecked="{Binding SelectedOpenVinoDevice, Converter={StaticResource StringEqualsConverter}, ConverterParameter=AUTO}"
+                                         Foreground="{StaticResource BrushTextPrimary}"
+                                         FontSize="{StaticResource TextBase}"/>
+                        </StackPanel>
+                    </StackPanel>
+
                     <!-- 拖拽提示 -->
                     <TextBlock Text="支持拖拽 .onnx 模型文件到本区域，自动识别模型类型并填充路径"
                                Foreground="{StaticResource BrushTextMuted}"

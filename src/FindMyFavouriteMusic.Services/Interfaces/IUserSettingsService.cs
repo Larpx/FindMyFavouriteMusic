@@ -18,7 +18,9 @@ public interface IUserSettingsService
     /// <param name="modelType">模型类型（VGGish 或 MERT）</param>
     /// <param name="vggishModelPath">VGGish 模型文件路径，可为 null</param>
     /// <param name="mertModelPath">MERT 模型文件路径，可为 null</param>
-    Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath);
+    /// <param name="executionProvider">推理 EP 模式（CPU 或 OpenVINO），v2.0 起新增</param>
+    /// <param name="openVinoDevice">OpenVINO 目标设备（GPU/NPU/AUTO），仅 executionProvider=OpenVINO 时生效</param>
+    Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath, string executionProvider, string openVinoDevice);
 
     /// <summary>
     /// 保存上次扫描的音乐库目录路径，供下次启动时自动重新扫描。

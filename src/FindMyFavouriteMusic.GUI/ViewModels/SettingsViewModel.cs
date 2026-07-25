@@ -54,6 +54,8 @@ public partial class SettingsViewModel : ViewModelBase
         _vggishModelPath = onnxConfig.VggishModelPath ?? string.Empty;
         _mertModelPath = onnxConfig.MertModelPath ?? string.Empty;
         _enableDeepFeatures = onnxConfig.EnableDeepFeatures;
+        _selectedExecutionProvider = onnxConfig.ExecutionProvider.ToString();
+        _selectedOpenVinoDevice = onnxConfig.OpenVinoDevice.ToString();
         _isModelLoaded = deepExtractor.IsModelLoaded;
         UpdateAcceleratorStatus();
     }
@@ -81,6 +83,41 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>是否启用深度特征提取</summary>
     [ObservableProperty]
     private bool _enableDeepFeatures;
+
+    /// <summary>
+    /// 当前选择的 Execution Provider 模式：CPU 或 OpenVINO。
+    /// </summary>
+    /// <remarks>
+    /// <para>v2.0 起仅支持 CPU 与 OpenVINO 两种模式（DirectML 已移除）。</para>
+    /// <para>切换 EP 需重启应用生效（native 库在启动时加载，无法运行时切换）。</para>
+    /// </remarks>
+    [ObservableProperty]
+    private string _selectedExecutionProvider;
+
+    /// <summary>
+    /// OpenVINO 目标设备：GPU / NPU / AUTO，仅当 <see cref="SelectedExecutionProvider"/> = OpenVINO 时生效。
+    /// </summary>
+    /// <remarks>
+    /// <para>GPU：Intel 集成或独立 GPU（默认，测试最优，对 MERT 有 2.24x 加速）；</para>
+    /// <para>NPU：Intel AI Boost NPU；</para>
+    /// <para>AUTO：OpenVINO 运行时自动选择最佳设备。</para>
+    /// </remarks>
+    [ObservableProperty]
+    private string _selectedOpenVinoDevice;
+
+    /// <summary>
+    /// 是否选择了 OpenVINO EP，用于控制 OpenVINO 设备选择控件的启用状态。
+    /// </summary>
+    public bool IsOpenVinoSelected => string.Equals(SelectedExecutionProvider, "OpenVINO", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>OpenVINO 设备选择是否可用（仅 OpenVINO 模式下允许选择设备）</summary>
+    public bool CanSelectOpenVinoDevice => IsOpenVinoSelected;
+
+    partial void OnSelectedExecutionProviderChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsOpenVinoSelected));
+        OnPropertyChanged(nameof(CanSelectOpenVinoDevice));
+    }
 
     /// <summary>当前模型是否已加载</summary>
     [ObservableProperty]
@@ -266,12 +303,13 @@ public partial class SettingsViewModel : ViewModelBase
         try
         {
             var result = await _userSettingsService.SaveOnnxModelSettingsAsync(
-                EnableDeepFeatures, SelectedModelType, VggishModelPath, MertModelPath);
+                EnableDeepFeatures, SelectedModelType, VggishModelPath, MertModelPath,
+                SelectedExecutionProvider, SelectedOpenVinoDevice);
             if (result.IsSuccess)
             {
-                StatusMessage = $"{SelectedModelType} 模型配置已保存（需重启应用生效）";
+                StatusMessage = $"{SelectedModelType} 模型配置已保存（EP={SelectedExecutionProvider}，需重启应用生效）";
                 await _dialogService.ShowSuccessAsync("配置已保存",
-                    $"{SelectedModelType} 模型配置已保存\n需重启应用后生效");
+                    $"{SelectedModelType} 模型配置已保存\n推理 EP: {SelectedExecutionProvider}\n需重启应用后生效");
             }
             else
             {

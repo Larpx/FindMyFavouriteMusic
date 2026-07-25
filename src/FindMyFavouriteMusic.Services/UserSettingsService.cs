@@ -54,7 +54,7 @@ public class UserSettingsService : IUserSettingsService
     }
 
     /// <inheritdoc/>
-    public async Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath)
+    public async Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath, string executionProvider, string openVinoDevice)
     {
         try
         {
@@ -64,11 +64,13 @@ public class UserSettingsService : IUserSettingsService
             onnx[nameof(JsonKeys.ModelType)] = modelType;
             onnx[nameof(JsonKeys.VggishModelPath)] = vggishModelPath ?? string.Empty;
             onnx[nameof(JsonKeys.MertModelPath)] = mertModelPath ?? string.Empty;
+            onnx[nameof(JsonKeys.ExecutionProvider)] = executionProvider;
+            onnx[nameof(JsonKeys.OpenVinoDevice)] = openVinoDevice;
             root[nameof(JsonKeys.OnnxModel)] = onnx;
 
             await WriteRootAsync(root);
-            _logger.LogInformation("ONNX 模型配置已保存: Enable={Enable}, Type={Type}, VggishPath={VggishPath}, MertPath={MertPath}",
-                enableDeepFeatures, modelType, vggishModelPath, mertModelPath);
+            _logger.LogInformation("ONNX 模型配置已保存: Enable={Enable}, Type={Type}, VggishPath={VggishPath}, MertPath={MertPath}, EP={Ep}, OpenVinoDevice={Device}",
+                enableDeepFeatures, modelType, vggishModelPath, mertModelPath, executionProvider, openVinoDevice);
             return Result.Success();
         }
         catch (Exception ex)
@@ -135,6 +137,8 @@ public class UserSettingsService : IUserSettingsService
         public const string ModelType = "ModelType";
         public const string VggishModelPath = "VggishModelPath";
         public const string MertModelPath = "MertModelPath";
+        public const string ExecutionProvider = "ExecutionProvider";
+        public const string OpenVinoDevice = "OpenVinoDevice";
         public const string Scan = "Scan";
         public const string LastScanDirectory = "LastScanDirectory";
     }
