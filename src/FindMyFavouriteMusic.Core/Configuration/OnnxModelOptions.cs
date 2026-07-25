@@ -7,8 +7,14 @@ public class OnnxModelOptions
 {
     public const string SectionName = "OnnxModel";
 
-    /// <summary>深度特征提取器类型：VGGish 或 MERT</summary>
-    public DeepModelType ModelType { get; set; } = DeepModelType.VGGish;
+    /// <summary>
+    /// 深度特征提取器类型：VGGish 或 MERT。
+    /// </summary>
+    /// <remarks>
+    /// v2.0 起默认 <see cref="DeepModelType.MERT"/>（基于性能测试结论：
+    /// MERT 768 维音乐专用特征推荐质量优于 VGGish 128 维通用特征，详见 <c>docs/算法说明.md</c> 第 10 章）。
+    /// </remarks>
+    public DeepModelType ModelType { get; set; } = DeepModelType.MERT;
 
     /// <summary>VGGish ONNX 模型文件路径（128 维输出）</summary>
     public string? VggishModelPath { get; set; }

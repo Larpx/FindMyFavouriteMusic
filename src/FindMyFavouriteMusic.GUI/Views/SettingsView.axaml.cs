@@ -79,8 +79,14 @@ public partial class SettingsView : UserControl
 
     /// <summary>
     /// 根据文件名自动识别模型类型。
-    /// <para>文件名包含 "mert"（不区分大小写）识别为 MERT，否则默认为 VGGish。</para>
     /// </summary>
+    /// <remarks>
+    /// <para>文件名包含 "mert"（不区分大小写）识别为 MERT，否则识别为 VGGish。</para>
+    /// <para><b>兜底选 VGGish 而非 MERT 的原因：</b>这是文件名启发式识别，不是默认配置。
+    /// MERT 模型文件名通常含 "mert" 关键字（如 MERT-v1-95M.onnx），不含该关键字的
+    /// 模型文件更可能是 VGGish 或其他通用音频模型。这与 <see cref="ViewModels.SettingsViewModel"/>
+    /// 中 <c>ParseModelType</c> 的 MERT 兜底不同——后者处理的是无效输入兜底，应与 v2.0 默认配置一致。</para>
+    /// </remarks>
     private static string DetectModelType(string path)
     {
         var fileName = Path.GetFileName(path);

@@ -181,13 +181,13 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 将 UI 中的模型类型字符串解析为枚举，无效值回退为 VGGish。
+    /// 将 UI 中的模型类型字符串解析为枚举，无效值回退为 MERT（与 v2.0 默认配置一致）。
     /// </summary>
     private static DeepModelType ParseModelType(string? modelType)
     {
         return Enum.TryParse<DeepModelType>(modelType, ignoreCase: true, out var result)
             ? result
-            : DeepModelType.VGGish;
+            : DeepModelType.MERT;
     }
 
     /// <summary>

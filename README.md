@@ -169,7 +169,7 @@ Configuration is stored in `appsettings.json`:
 v2.0 起仅保留 **OpenVINO + CPU** 双 EP 架构（DirectML 已移除，性能对比与选型结论详见 `docs/算法说明.md` 第 10 章）：
 
 - **OpenVINO EP**：Intel 官方为 Core Ultra NPU/GPU 提供的最优 EP，算子覆盖率与性能均优于 DirectML。支持三种目标设备：
-  - `GPU`（默认）：实测对 MERT 加速 2.24x、对 VGGish 加速 2.13x
+  - `GPU`（默认）：实测对 MERT 加速 2.24x（16.3s vs CPU 36.6s）；VGGish 因模型小 CPU 已最快，GPU 反而慢 2.13 倍
   - `NPU`：Intel AI Boost NPU 专用
   - `AUTO`：OpenVINO 运行时自动选择最佳设备
 - **CPU EP**：纯 CPU 推理，兼容性最佳，作为 OpenVINO 不可用或推理失败时的回退。

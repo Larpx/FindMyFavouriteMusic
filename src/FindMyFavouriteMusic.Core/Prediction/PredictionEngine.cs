@@ -15,7 +15,8 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Prediction;
 /// 画像数据由调用方注入，便于测试与复用。</para>
 /// <para><b>评分公式（声学+深度模式）：</b></para>
 /// <para>score = AcousticWeight × acousticScore + DeepWeight × deepScore</para>
-/// <para>默认权重 0.4 / 0.6，深度特征权重更高，因其基于 VGGish 语义嵌入，对噪声与编码差异更鲁棒。</para>
+/// <para>默认权重 0.4 / 0.6，深度特征权重更高，因其基于音乐语义嵌入（v2.0 默认 MERT 768 维），
+/// 对噪声与编码差异比声学特征更鲁棒。</para>
 /// <para><b>仅声学模式（降级）：</b></para>
 /// <para>score = AcousticOnlyWeight × acousticScore</para>
 /// <para>AcousticOnlyWeight 通常为 1.0，避免在缺少深度特征时对分数进行额外缩放。</para>
