@@ -162,45 +162,52 @@ Configuration is stored in `appsettings.json`:
 - `Larpx.PersonalTools.FindMyFavouriteMusic.Models`
 - `Larpx.PersonalTools.FindMyFavouriteMusic.GUI`
 
-## NPU 加速
+## 推理加速（Execution Provider）
 
-应用启动时会自动检测当前设备是否存在 NPU（通过 WMI 查询 `Intel(R) AI Boost` / `NPU` / `Neural Processing` 等设备名）。
+应用启动时会自动检测当前设备是否存在 NPU（通过 WMI 查询 `Intel(R) AI Boost` / `NPU` / `Neural Processing` 等设备名），用于在设置页提示用户 NPU 是否可用。
 
-- 检测到 NPU 且 `OnnxModel.PreferNpu=true`（默认）时，深度模型推理会尝试通过 **DirectML Execution Provider** 加速（Windows 11 24H2+ 上 DirectML 12 会自动将支持的算子 offload 到 NPU）。
-- 未检测到 NPU、用户禁用 PreferNpu、或 DirectML EP 注册失败时，自动回退到 CPU EP，保证可用性。
-- 设置页"深度学习模型"卡片底部显示 NPU 检测结果与当前生效的推理设备（只读，不允许手动切换）。
-- 可在 `appsettings.json` / `usersettings.json` 中设置 `"OnnxModel": { "PreferNpu": false }` 强制使用 CPU。
+v2.0 起仅保留 **OpenVINO + CPU** 双 EP 架构（DirectML 已移除，性能对比与选型结论详见 `docs/算法说明.md` 第 10 章）：
 
-## TODO
+- **OpenVINO EP**：Intel 官方为 Core Ultra NPU/GPU 提供的最优 EP，算子覆盖率与性能均优于 DirectML。支持三种目标设备：
+  - `GPU`（默认）：实测对 MERT 加速 2.24x、对 VGGish 加速 2.13x
+  - `NPU`：Intel AI Boost NPU 专用
+  - `AUTO`：OpenVINO 运行时自动选择最佳设备
+- **CPU EP**：纯 CPU 推理，兼容性最佳，作为 OpenVINO 不可用或推理失败时的回退。
 
-### 切换为 OpenVINO EP 以获得 Intel NPU 最优性能
+### 用户可配置
 
-当前实现使用 DirectML EP，作为跨厂商通用加速方案。针对 Intel Core Ultra（Meteor Lake+）NPU，OpenVINO EP 是 Intel 官方最优支持方案，算子覆盖率与性能均优于 DirectML。后续可按以下步骤切换：
+设置页"推理设备"卡片提供两项选择：
 
-1. **替换 NuGet 依赖**：
-   - 移除 `Microsoft.ML.OnnxRuntime.DirectML`
-   - 新增 `Intel.ML.OnnxRuntime.OpenVino`（与 `Microsoft.ML.OnnxRuntime` 同版本号 1.22.0）
+- **EP 模式**：CPU 或 OpenVINO（切换后需重启应用生效，native 库在启动时加载，无法运行时切换）
+- **OpenVINO 目标设备**：GPU / NPU / AUTO（仅 OpenVINO 模式下可选）
 
-2. **改造 `HardwareAccelerator.ConfigureSessionOptions`**：
-   ```csharp
-   // OpenVINO EP 指定 NPU 设备
-   options.AppendExecutionProvider_OpenVINO("NPU");
-   ```
-   可选配置项：`device_type=NPU`、`precision=FP16`、`cache_dir`（编译缓存目录以加速二次启动）。
+选择会通过 `IUserSettingsService.SaveOnnxModelSettingsAsync` 持久化到 `usersettings.json` 的 `OnnxModel.ExecutionProvider` 与 `OnnxModel.OpenVinoDevice` 字段。
 
-3. **NPU 检测增强**：
-   OpenVINO 提供原生设备枚举 API，可替代 WMI 查询获取更准确的 NPU 设备名与算子支持情况。可改为尝试创建临时 OpenVINO NPU 会话验证可用性。
+### 配置文件示例
 
-4. **算子兼容性验证**：
-   VGGish 与 MERT 模型可能存在部分算子未被 OpenVINO NPU 支持，OpenVINO EP 会自动分区将不支持的算子回退到 CPU。需实测验证推理结果与 DirectML/CPU 一致，并对比性能。
+```json
+"OnnxModel": {
+  "ModelType": "MERT",
+  "VggishModelPath": null,
+  "MertModelPath": "Models/MERT-v1-95M.onnx",
+  "EnableDeepFeatures": true,
+  "ExecutionProvider": "OpenVINO",
+  "OpenVinoDevice": "GPU",
+  "OpenVinoCacheDir": "./openvino-cache"
+}
+```
 
-5. **包体积权衡**：
-   OpenVINO 运行时依赖约 100-200MB，需评估对安装包体积的影响。可考虑按需下载或拆分发布包。
+### 优雅降级
 
-6. **回退策略保留**：
-   OpenVINO EP 加载失败时仍应回退到 CPU EP，保持现有 `ConfigureSessionOptions` 返回 `Result.Failure` 的优雅降级路径不变。
+- OpenVINO EP 注册失败（如 native 库缺失、设备不可用）时，`HardwareAccelerator.ConfigureSessionOptions` 返回 `Result.Failure`，提取器自动回退到 CPU EP 创建会话。
+- 推理过程中 OpenVINO 算子不兼容抛出异常时，提取器重建 CPU EP 会话并重试一次（通过 `_hasAttemptedCpuFallback` 标志避免循环）。
 
-参考资料：
+### OpenVINO 编译缓存
+
+设置 `OpenVinoCacheDir`（如 `./openvino-cache`）后，`HardwareAccelerator` 通过 `SessionOptions.AddSessionConfigEntry` 设置 `session.openvino.cache_dir`，将首次编译结果缓存到磁盘，显著加速二次启动后的会话创建。留空则不启用缓存。
+
+### 参考链接
+
 - [OpenVINO Execution Provider](https://onnxruntime.ai/docs/execution-providers/OpenVINO-ExecutionProvider.html)
 - [Windows ML Execution Providers](https://learn.microsoft.com/windows/ai/new-windows-ml/supported-execution-providers)
 

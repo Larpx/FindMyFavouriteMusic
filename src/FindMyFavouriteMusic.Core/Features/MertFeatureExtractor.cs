@@ -42,7 +42,7 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// 是否已尝试过 CPU 回退，避免推理反复重建会话导致无限循环。
     /// </summary>
     /// <remarks>
-    /// <para>仅当 <see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 为 DirectML 且此标志为 false 时，
+    /// <para>仅当 <see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 非 CPU 且此标志为 false 时，
     /// 才允许触发一次 CPU 回退。回退后此标志置 true，后续推理失败不再回退。</para>
     /// </remarks>
     private bool _hasAttemptedCpuFallback;
@@ -63,7 +63,7 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// 构造 MERT 特征提取器，并按配置自动加载模型。
     /// </summary>
     /// <param name="options">ONNX 模型配置</param>
-    /// <param name="accelerator">硬件加速器，用于配置 DirectML EP 以启用 NPU/GPU 加速。</param>
+    /// <param name="accelerator">硬件加速器，用于配置 OpenVINO EP 以启用 NPU/GPU 加速。</param>
     /// <param name="logger">日志记录器</param>
     public MertFeatureExtractor(
         IOptions<OnnxModelOptions> options,
@@ -100,7 +100,7 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// <param name="modelType">模型类型（由工厂传入，本提取器固定为 MERT，忽略此参数）。</param>
     /// <returns>加载结果</returns>
     /// <remarks>
-    /// <para>EP 选择流程：优先尝试通过 <see cref="IHardwareAccelerator"/> 配置 DirectML EP（NPU/GPU 加速）；
+    /// <para>EP 选择流程：优先尝试通过 <see cref="IHardwareAccelerator"/> 配置 OpenVINO EP（NPU/GPU 加速）；
     /// 若配置失败或异常，回退到默认 CPU EP 创建会话。</para>
     /// </remarks>
     public Result LoadModel(string modelPath, DeepModelType modelType)
@@ -114,7 +114,7 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
         {
             _session = CreateSession(modelPath);
             _modelPath = modelPath;
-            // 新模型加载时重置回退标志，允许后续推理在 DirectML 失败时再次尝试 CPU 回退
+            // 新模型加载时重置回退标志，允许后续推理在 OpenVINO 失败时再次尝试 CPU 回退
             _hasAttemptedCpuFallback = false;
             _logger.LogInformation("MERT ONNX 模型加载成功: {ModelPath} (EP={EP})", modelPath, _accelerator.ActiveExecutionProvider);
             return Result.Success();
@@ -128,13 +128,13 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     }
 
     /// <summary>
-    /// 创建推理会话：优先尝试 DirectML EP，失败回退 CPU EP。
+    /// 创建推理会话：优先尝试 OpenVINO EP，失败回退 CPU EP。
     /// </summary>
     /// <param name="modelPath">ONNX 模型文件路径。</param>
     /// <returns>已配置 EP 的 <see cref="InferenceSession"/> 实例。</returns>
     private InferenceSession CreateSession(string modelPath)
     {
-        // 优先尝试 DirectML EP：ConfigureSessionOptions 会在传入的 options 上追加 EP
+        // 优先尝试 OpenVINO EP：ConfigureSessionOptions 会在传入的 options 上追加 EP
         var sessionOptions = new SessionOptions();
         var epResult = _accelerator.ConfigureSessionOptions(sessionOptions);
         if (epResult.IsSuccess)
@@ -145,7 +145,7 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "DirectML EP 会话创建失败，回退到 CPU EP");
+                _logger.LogWarning(ex, "OpenVINO EP 会话创建失败，回退到 CPU EP");
             }
         }
 
@@ -216,11 +216,11 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// <summary>
     /// 判断当前是否满足"推理失败回退 CPU"的条件。
     /// </summary>
-    /// <returns>当前 EP 为 DirectML 且尚未尝试过 CPU 回退时返回 true。</returns>
+    /// <returns>当前 EP 非 CPU 且尚未尝试过 CPU 回退时返回 true。</returns>
     /// <remarks>避免在 CPU EP 下重复回退，或已回退后再次触发重建。</remarks>
     private bool CanFallbackToCpu()
     {
-        // 当前 EP 非 CPU（DirectML / OpenVINO 等）且尚未尝试过 CPU 回退时才允许回退
+        // 当前 EP 非 CPU（OpenVINO 等）且尚未尝试过 CPU 回退时才允许回退
         // 避免在 CPU EP 下重复回退，或已回退后再次触发重建
         return _accelerator.ActiveExecutionProvider != "CPU" && !_hasAttemptedCpuFallback;
     }

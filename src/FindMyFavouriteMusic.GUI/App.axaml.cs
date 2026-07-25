@@ -38,7 +38,7 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         // 必须在任何 ONNX Runtime API 调用之前，根据配置复制对应 EP 的 native 库到输出根目录
-        // DirectML 与 OpenVINO 的 native 库（onnxruntime.dll）物理互斥，运行时切换由 EpNativeLoader 完成
+        // v2.0 起仅保留 OpenVINO + CPU 双 EP 架构，两者共用同一份 OpenVINO native 库（含完整 CPU EP）
         InitializeEpNativeLib();
 
         _host = CreateHost();
