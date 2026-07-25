@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Core 使用 System.Management (Windows-only) 与 DirectML/OpenVINO EP，需统一为 Windows TFM -->
+    <!-- Core 使用 System.Management (Windows-only) 与 OpenVINO EP，需统一为 Windows TFM -->
     <TargetFramework>net10.0-windows</TargetFramework>
   </PropertyGroup>
 
@@ -17,23 +17,21 @@
     <PackageReference Include="NAudio.Vorbis" />
     <PackageReference Include="NWaves" />
     <!--
-      ONNX Runtime EP 共存方案：
+      ONNX Runtime EP 架构（v2.0 起仅 OpenVINO + CPU 双 EP）：
       - Microsoft.ML.OnnxRuntime.Managed：仅托管层 DLL，不含 native 库
-      - Microsoft.ML.OnnxRuntime.DirectML：DirectML EP native 库（ExcludeAssets=all，由下方 Target 复制到 ep-dml 子目录）
       - Intel.ML.OnnxRuntime.OpenVino：OpenVINO EP native 库（ExcludeAssets=all，由下方 Target 复制到 ep-openvino 子目录）
-      两个 native 包都包含不同版本的 onnxruntime.dll，物理互斥，故用 ExcludeAssets=all 阻止默认复制，
-      改由 CopyEpNativeLibs Target 分别复制到独立子目录，运行时由 EpNativeLoader 根据配置切换。
+      OpenVINO 包的 onnxruntime.dll 同时包含完整 CPU EP 与 OpenVINO EP，
+      运行时由 EpNativeLoader 把 ep-openvino 子目录的 native 库复制到输出根目录。
     -->
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" ExcludeAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Intel.ML.OnnxRuntime.OpenVino" ExcludeAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="System.Management" />
     <PackageReference Include="MathNet.Numerics" />
   </ItemGroup>
 
   <!--
-    CopyEpNativeLibs Target 已移至 src/Directory.Build.targets，由所有引用 EP native 包的项目共享。
-    （仅当项目设置了 GeneratePathProperty=true 引用对应 native 包时，Target 才会执行）
+    CopyOpenVinoNativeLibs Target 已移至 src/Directory.Build.targets，由所有引用 EP native 包的项目共享。
+    （仅当项目设置了 GeneratePathProperty=true 引用 OpenVINO native 包时，Target 才会执行）
   -->
 
 </Project>

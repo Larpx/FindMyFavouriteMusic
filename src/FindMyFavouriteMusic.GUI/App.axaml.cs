@@ -124,12 +124,12 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// 在任何 ONNX Runtime API 调用之前，根据配置复制对应 EP 的 native 库到输出根目录。
+    /// 在任何 ONNX Runtime API 调用之前，把 OpenVINO native 库复制到输出根目录。
     /// </summary>
     /// <remarks>
-    /// <para>DirectML 与 OpenVINO EP 的 native 库（onnxruntime.dll）物理互斥，
-    /// 启动时由 <see cref="EpNativeLoader"/> 根据配置把对应子目录（ep-dml / ep-openvino）的
-    /// native 库复制到输出根目录。</para>
+    /// <para>v2.0 起仅保留 OpenVINO + CPU 双 EP 架构，两者共用同一份 OpenVINO native 库
+    /// （包含完整 CPU EP）。启动时由 <see cref="EpNativeLoader"/> 把
+    /// <c>ep-openvino/</c> 子目录的 native 库复制到输出根目录。</para>
     /// <para>必须在进程启动早期、任何 ORT P/Invoke 之前调用，否则已加载的 onnxruntime.dll 无法替换。</para>
     /// <para>读取配置与 <see cref="CreateHost"/> 相同的优先级：环境变量 > usersettings.json > appsettings.json。</para>
     /// </remarks>
@@ -147,12 +147,7 @@ public partial class App : Application
             var onnxConfig = new OnnxModelOptions();
             config.GetSection(OnnxModelOptions.SectionName).Bind(onnxConfig);
 
-            // 与 HardwareAccelerator 的决策逻辑保持一致：PreferNpu=false 强制 CPU
-            var effectiveEp = !onnxConfig.PreferNpu
-                ? ExecutionProviderMode.CPU
-                : onnxConfig.ExecutionProvider;
-
-            EpNativeLoader.Initialize(AppContext.BaseDirectory, effectiveEp);
+            EpNativeLoader.Initialize(AppContext.BaseDirectory, onnxConfig.ExecutionProvider);
         }
         catch (Exception ex)
         {

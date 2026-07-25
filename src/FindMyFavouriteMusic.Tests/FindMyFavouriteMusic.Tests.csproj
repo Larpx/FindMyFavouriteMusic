@@ -21,11 +21,10 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <!--
-      引用 EP native 包（ExcludeAssets=all 阻止默认复制，GeneratePathProperty=true 生成 $(Pkg...) 路径变量）
-      仅为了让 src/Directory.Build.targets 中的 CopyEpNativeLibs Target 在测试项目构建时执行，
-      把 ep-dml/ 与 ep-openvino/ 子目录复制到测试输出目录，供 EpNativeLoader 运行时切换。
+      引用 OpenVINO native 包（ExcludeAssets=all 阻止默认复制，GeneratePathProperty=true 生成 $(Pkg...) 路径变量）
+      仅为了让 src/Directory.Build.targets 中的 CopyOpenVinoNativeLibs Target 在测试项目构建时执行，
+      把 ep-openvino/ 子目录复制到测试输出目录，供 EpNativeLoader 运行时加载。
     -->
-    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" ExcludeAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Intel.ML.OnnxRuntime.OpenVino" ExcludeAssets="all" GeneratePathProperty="true" />
   </ItemGroup>
 

@@ -1,6 +1,8 @@
-﻿# 5 种 EP 配置（CPU / DirectML / OpenVINO AUTO/NPU/GPU）性能对比脚本
+# 4 种 EP 配置（CPU / OpenVINO AUTO/NPU/GPU）性能对比脚本
 # 分别测试 VGGish 与 MERT 处理 Models/ナナツカゼ,PIKASONIC,なこたんまる - 再生.flac 的耗时
 # 使用 trx 日志（UTF-8 XML）解析耗时，避免中文控制台编码问题
+#
+# v2.0 起移除 DirectML EP，仅对比 CPU 与 OpenVINO 三种设备（AUTO/NPU/GPU）。
 #
 # 用法：
 #   .\Run-Ep-Benchmark.ps1
@@ -23,10 +25,9 @@ $resultDir = Join-Path $repoRoot 'TestResults'
 New-Item -ItemType Directory -Force -Path $resultDir | Out-Null
 New-Item -ItemType Directory -Force -Path $trxDir | Out-Null
 
-# 5 种 EP 测试配置
+# 4 种 EP 测试配置（v2.0 起移除 DirectML）
 $configs = @(
     @{ Name = 'CPU';            Ep = 'CPU';      Device = '' }
-    @{ Name = 'DirectML';       Ep = 'DirectML'; Device = '' }
     @{ Name = 'OpenVINO-AUTO';  Ep = 'OpenVINO'; Device = 'AUTO' }
     @{ Name = 'OpenVINO-NPU';   Ep = 'OpenVINO'; Device = 'NPU' }
     @{ Name = 'OpenVINO-GPU';   Ep = 'OpenVINO'; Device = 'GPU' }
@@ -92,7 +93,6 @@ for ($i = 0; $i -lt $configs.Count; $i++) {
     # 清理上一次的环境变量
     Remove-Item Env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider -ErrorAction SilentlyContinue
     Remove-Item Env:FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice -ErrorAction SilentlyContinue
-    Remove-Item Env:FINDMYFAVOURITEMUSIC_OnnxModel__PreferNpu -ErrorAction SilentlyContinue
 
     # 设置本次环境变量
     $env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = $cfg.Ep
@@ -143,7 +143,6 @@ for ($i = 0; $i -lt $configs.Count; $i++) {
     # 清理本次环境变量
     Remove-Item Env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider -ErrorAction SilentlyContinue
     Remove-Item Env:FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice -ErrorAction SilentlyContinue
-    Remove-Item Env:FINDMYFAVOURITEMUSIC_OnnxModel__PreferNpu -ErrorAction SilentlyContinue
 }
 
 # 4. 汇总输出

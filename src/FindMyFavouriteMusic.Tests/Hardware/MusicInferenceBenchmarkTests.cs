@@ -18,23 +18,23 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Hardware;
 /// 对 VGGish 与 MERT 两个模型分别测量不同 Execution Provider 下的加载耗时和推理耗时。
 /// </summary>
 /// <remarks>
-/// <para><b>测试目标：</b>回答"DirectML / OpenVINO / CPU 三种 EP 中，哪种最快"。</para>
+/// <para>v2.0 起仅测试 OpenVINO + CPU 双 EP 架构（DirectML 已移除）。</para>
+/// <para><b>测试目标：</b>回答"OpenVINO（GPU/NPU/AUTO）vs CPU，哪种最快"。</para>
 /// <para><b>测试输入：</b>仓库根目录 <c>Models/ナナツカゼ,PIKASONIC,なこたんまる - 再生.flac</c>。</para>
 /// <para><b>EP 选择机制：</b>由 <c>EpNativeLoaderInitializer</c>（ModuleInitializer）读取环境变量
 /// <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c> 决定测试启动时复制哪种 EP 的 native 库到根目录。
 /// 由于 native 库加载后无法卸载，单次 <c>dotnet test</c> 运行只能测试一种 EP。</para>
 /// <para><b>对比方式：</b></para>
-/// <para>- <see cref="Benchmark_MusicInference_AcceleratorVsCpu"/>：当前 EP（DirectML/OpenVINO）vs CPU，单次运行得到对比表；</para>
-/// <para>- <see cref="Benchmark_MusicInference_CurrentEp_Only"/>：仅运行当前 EP，输出耗时，便于用户运行 3 次对比三种 EP。</para>
+/// <para>- <see cref="Benchmark_MusicInference_AcceleratorVsCpu"/>：当前 EP（OpenVINO）vs CPU，单次运行得到对比表；</para>
+/// <para>- <see cref="Benchmark_MusicInference_CurrentEp_Only"/>：仅运行当前 EP，输出耗时，便于用户运行多次对比多种 EP。</para>
 /// <para><b>使用示例（PowerShell）：</b></para>
 /// <para>1. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "CPU"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
-/// <para>2. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "DirectML"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
-/// <para>3. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "OpenVINO"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
+/// <para>2. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "OpenVINO"; $env:FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice = "GPU"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
+/// <para>3. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "OpenVINO"; $env:FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice = "NPU"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
 /// <para><b>OpenVINO 设备选择：</b>OpenVINO EP 支持 NPU/GPU/AUTO 三种目标设备，
-/// 通过 <c>FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice</c> 环境变量切换（默认 NPU）。</para>
-/// <para><b>已知行为：</b>MERT 含动态形状 Reshape 算子，DirectML EP 推理会失败并触发 CPU 回退，
-/// 因此 MERT 在 DirectML 模式下的耗时包含"DirectML 失败 + 重建 CPU 会话 + CPU 推理"，预期比直接 CPU 模式慢。
-/// OpenVINO EP 对动态形状支持更好，MERT 在 OpenVINO 下应能直接推理成功。</para>
+/// 通过 <c>FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice</c> 环境变量切换（默认 GPU）。</para>
+/// <para><b>已知行为：</b>OpenVINO EP 对动态形状支持较好，MERT 在 OpenVINO(GPU) 下能直接推理成功。
+/// 但 NPU 设备对部分算子可能不兼容，触发 CPU 回退时耗时包含"OpenVINO 失败 + 重建 CPU 会话 + CPU 推理"。</para>
 /// </remarks>
 public class MusicInferenceBenchmarkTests
 {
@@ -49,12 +49,12 @@ public class MusicInferenceBenchmarkTests
     }
 
     /// <summary>
-    /// 对指定 flac 音乐文件，测量 VGGish 与 MERT 在"当前配置的加速 EP（DirectML/OpenVINO）"与"CPU"模式下的加载与推理耗时。
+    /// 对指定 flac 音乐文件，测量 VGGish 与 MERT 在"当前配置的加速 EP（OpenVINO）"与"CPU"模式下的加载与推理耗时。
     /// </summary>
     /// <remarks>
     /// <para>当前 EP 由环境变量 <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c> 决定
     /// （由 ModuleInitializer 在测试启动时复制对应 native 库）。</para>
-    /// <para>未设置环境变量时默认 DirectML（与生产默认值一致）。</para>
+    /// <para>未设置环境变量时默认 OpenVINO（与生产默认值一致）。</para>
     /// <para>测试输出对比表，标注当前 EP 与是否触发 CPU 回退。</para>
     /// </remarks>
     [Fact]
@@ -168,8 +168,9 @@ public class MusicInferenceBenchmarkTests
     /// 仅运行当前生效的 EP（不与 CPU 对比），输出 VGGish 与 MERT 的加载与推理耗时。
     /// </summary>
     /// <remarks>
-    /// <para><b>使用场景：</b>用户依次运行 3 次（设置不同 <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c>），
-    /// 每次输出当前 EP 的耗时，便于横向对比 CPU / DirectML / OpenVINO 三种 EP。</para>
+    /// <para><b>使用场景：</b>用户依次运行多次（设置不同 <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c>
+    /// 与 <c>FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice</c>），
+    /// 每次输出当前 EP 的耗时，便于横向对比 CPU / OpenVINO(GPU/NPU/AUTO) 等多种 EP。</para>
     /// <para><b>与 <see cref="Benchmark_MusicInference_AcceleratorVsCpu"/> 的差异：</b>
     /// 后者在单次运行内对比"当前 EP vs CPU"，本测试只测当前 EP，节省时间，适合多次运行对比。</para>
     /// </remarks>
@@ -231,7 +232,7 @@ public class MusicInferenceBenchmarkTests
         }
 
         _output.WriteLine(string.Empty);
-        _output.WriteLine($"提示：分别设置 FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider=CPU/DirectML/OpenVINO 运行 3 次以对比三种 EP");
+        _output.WriteLine($"提示：分别设置 FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider=CPU/OpenVINO 与 FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice=GPU/NPU/AUTO 运行多次以对比多种 EP");
 
         samples.Length.Should().BeGreaterThan(0);
     }
@@ -243,7 +244,7 @@ public class MusicInferenceBenchmarkTests
     /// <param name="modelLabel">模型标签，用于输出</param>
     /// <param name="modelPath">模型文件路径</param>
     /// <param name="samples">PCM 采样数据</param>
-    /// <param name="ep">本次运行的 EP 模式（CPU / DirectML / OpenVINO）</param>
+    /// <param name="ep">本次运行的 EP 模式（CPU / OpenVINO）</param>
     /// <param name="openVinoDevice">OpenVINO 目标设备（仅 EP=OpenVINO 时生效）</param>
     /// <param name="factory">提取器工厂方法</param>
     /// <param name="modelType">深度模型类型（VGGish / MERT）</param>
@@ -260,11 +261,10 @@ public class MusicInferenceBenchmarkTests
         var modeLabel = FormatEpLabel(ep, openVinoDevice);
         _output.WriteLine($"--- {modelLabel} [{modeLabel}] ---");
 
-        // OnnxModelOptions 的决策逻辑：PreferNpu=false 强制 CPU，PreferNpu=true 时按 ExecutionProvider 字段选择
+        // OnnxModelOptions 的决策逻辑：ExecutionProvider=CPU 强制 CPU，否则按 ExecutionProvider 字段选择 OpenVINO 设备
         var options = Options.Create(new OnnxModelOptions
         {
             EnableDeepFeatures = false,
-            PreferNpu = ep != ExecutionProviderMode.CPU,
             ExecutionProvider = ep,
             OpenVinoDevice = openVinoDevice
         });
@@ -324,23 +324,16 @@ public class MusicInferenceBenchmarkTests
     /// </summary>
     /// <returns>(EP 模式, OpenVINO 目标设备)</returns>
     /// <remarks>
-    /// 未设置环境变量时返回生产默认值（DirectML + NPU）。
+    /// 未设置环境变量时返回生产默认值（OpenVINO + GPU）。
     /// </remarks>
     private static (ExecutionProviderMode ep, OpenVinoDeviceType device) ResolveCurrentEpConfig()
     {
-        var preferNpuRaw = Environment.GetEnvironmentVariable("FINDMYFAVOURITEMUSIC_OnnxModel__PreferNpu");
-        if (bool.TryParse(preferNpuRaw, out var preferNpu) && !preferNpu)
-        {
-            return (ExecutionProviderMode.CPU, OpenVinoDeviceType.NPU);
-        }
-
         var epRaw = Environment.GetEnvironmentVariable("FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider");
         var ep = epRaw?.Trim().ToLowerInvariant() switch
         {
             "cpu" => ExecutionProviderMode.CPU,
-            "directml" or "dml" => ExecutionProviderMode.DirectML,
             "openvino" or "ov" => ExecutionProviderMode.OpenVINO,
-            _ => ExecutionProviderMode.DirectML // 生产默认值
+            _ => ExecutionProviderMode.OpenVINO // 生产默认值
         };
 
         var deviceRaw = Environment.GetEnvironmentVariable("FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice");
@@ -349,7 +342,7 @@ public class MusicInferenceBenchmarkTests
             "npu" => OpenVinoDeviceType.NPU,
             "gpu" => OpenVinoDeviceType.GPU,
             "auto" => OpenVinoDeviceType.AUTO,
-            _ => OpenVinoDeviceType.NPU // 生产默认值
+            _ => OpenVinoDeviceType.GPU // 生产默认值
         };
 
         return (ep, device);
@@ -360,12 +353,11 @@ public class MusicInferenceBenchmarkTests
     /// </summary>
     /// <param name="ep">EP 模式</param>
     /// <param name="device">OpenVINO 目标设备（仅 EP=OpenVINO 时使用）</param>
-    /// <returns>形如 "DirectML"、"OpenVINO(NPU)"、"CPU" 的标签字符串</returns>
+    /// <returns>形如 "OpenVINO(GPU)"、"OpenVINO(NPU)"、"CPU" 的标签字符串</returns>
     private static string FormatEpLabel(ExecutionProviderMode ep, OpenVinoDeviceType device)
     {
         return ep switch
         {
-            ExecutionProviderMode.DirectML => "DirectML",
             ExecutionProviderMode.OpenVINO => $"OpenVINO({device})",
             _ => "CPU"
         };

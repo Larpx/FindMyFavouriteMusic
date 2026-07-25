@@ -10,27 +10,22 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 
 /// <summary>
 /// 硬件加速器默认实现：启动时通过 WMI 检测 Intel AI Boost NPU，
-/// 并提供 DirectML / OpenVINO / CPU 三种 Execution Provider 配置能力。
+/// 并提供 OpenVINO / CPU 两种 Execution Provider 配置能力。
 /// </summary>
 /// <remarks>
 /// <para><b>NPU 检测策略：</b>通过 WMI 查询 <c>Win32_PnPEntity</c>，
 /// 代码层精确匹配设备名含 <c>Intel(R) AI Boost</c> 的设备。</para>
 /// <para><b>EP 配置策略：</b>由 <see cref="OnnxModelOptions.ExecutionProvider"/> 字段决定：</para>
-/// <para>- <see cref="ExecutionProviderMode.DirectML"/>：调用 <see cref="SessionOptions.AppendExecutionProvider_DML(int)"/> 注册 DirectML EP；</para>
 /// <para>- <see cref="ExecutionProviderMode.OpenVINO"/>：调用 <see cref="SessionOptions.AppendExecutionProvider_OpenVINO(string)"/> 注册 OpenVINO EP，
-/// 目标设备由 <see cref="OnnxModelOptions.OpenVinoDevice"/> 指定（NPU/GPU/AUTO）；</para>
+/// 目标设备由 <see cref="OnnxModelOptions.OpenVinoDevice"/> 指定（GPU/NPU/AUTO，默认 GPU）；</para>
 /// <para>- <see cref="ExecutionProviderMode.CPU"/>：不附加任何 EP，使用纯 CPU 推理。</para>
-/// <para><b>向后兼容：</b>当 <see cref="OnnxModelOptions.PreferNpu"/> = false 时，强制 CPU EP（覆盖 ExecutionProvider 字段）。</para>
-/// <para><b>关于 DirectML 与 NPU 的关系：</b>DirectML 12 在 Windows 11 24H2+ 上会自动将 NPU 支持的算子
-/// offload 到 NPU，由 DirectML 运行时与驱动协同决策。</para>
-/// <para><b>OpenVINO EP 优势：</b>Intel 官方为 Core Ultra NPU 提供的最优 EP，算子覆盖率与性能均优于 DirectML。
-/// 但 OpenVINO 与 DirectML 的 native 库互斥，启动时由 <see cref="EpNativeLoader"/> 根据配置切换。</para>
+/// <para><b>OpenVINO EP 优势：</b>Intel 官方为 Core Ultra NPU/GPU 提供的最优 EP，算子覆盖率与性能均优于 DirectML。
+/// v2.0 起移除 DirectML EP（测试表明对 VGGish 比 CPU 慢，对 MERT 触发 CPU 回退）。</para>
 /// <para><b>优雅降级：</b>WMI 查询失败、EP 注册失败均不抛异常，返回 Failure 由调用方回退 CPU。</para>
 /// </remarks>
 public class HardwareAccelerator : IHardwareAccelerator
 {
     private readonly ILogger<HardwareAccelerator> _logger;
-    private readonly bool _preferNpu;
     private readonly ExecutionProviderMode _executionProvider;
     private readonly OpenVinoDeviceType _openVinoDevice;
     private readonly string? _openVinoCacheDir;
@@ -47,16 +42,14 @@ public class HardwareAccelerator : IHardwareAccelerator
     /// <summary>
     /// 构造硬件加速器，启动时执行一次性 NPU 检测。
     /// </summary>
-    /// <param name="options">ONNX 模型配置，读取 <see cref="OnnxModelOptions.PreferNpu"/>、
-    /// <see cref="OnnxModelOptions.ExecutionProvider"/>、<see cref="OnnxModelOptions.OpenVinoDevice"/>、
-    /// <see cref="OnnxModelOptions.OpenVinoCacheDir"/></param>
+    /// <param name="options">ONNX 模型配置，读取 <see cref="OnnxModelOptions.ExecutionProvider"/>、
+    /// <see cref="OnnxModelOptions.OpenVinoDevice"/>、<see cref="OnnxModelOptions.OpenVinoCacheDir"/></param>
     /// <param name="logger">日志记录器</param>
     public HardwareAccelerator(
         IOptions<OnnxModelOptions> options,
         ILogger<HardwareAccelerator> logger)
     {
         _logger = logger;
-        _preferNpu = options.Value.PreferNpu;
         _executionProvider = options.Value.ExecutionProvider;
         _openVinoDevice = options.Value.OpenVinoDevice;
         _openVinoCacheDir = options.Value.OpenVinoCacheDir;
@@ -64,56 +57,44 @@ public class HardwareAccelerator : IHardwareAccelerator
         (IsNpuAvailable, NpuDeviceName) = DetectNpu();
 
         logger.LogInformation(
-            "NPU 检测结果: Available={Available}, Device={Device}, PreferNpu={PreferNpu}, ExecutionProvider={Ep}, OpenVinoDevice={OvDevice}",
-            IsNpuAvailable, NpuDeviceName ?? "(未检测到)", _preferNpu, _executionProvider, _openVinoDevice);
+            "NPU 检测结果: Available={Available}, Device={Device}, ExecutionProvider={Ep}, OpenVinoDevice={OvDevice}",
+            IsNpuAvailable, NpuDeviceName ?? "(未检测到)", _executionProvider, _openVinoDevice);
     }
 
     /// <inheritdoc/>
     /// <remarks>
     /// <para>决策流程：</para>
-    /// <para>1. <see cref="OnnxModelOptions.PreferNpu"/> = false 或 <see cref="OnnxModelOptions.ExecutionProvider"/> = CPU
+    /// <para>1. <see cref="OnnxModelOptions.ExecutionProvider"/> = CPU
     /// → 返回 Failure，调用方使用 CPU EP；</para>
-    /// <para>2. ExecutionProvider = DirectML → 尝试追加 DirectML EP，成功返回 Success；</para>
-    /// <para>3. ExecutionProvider = OpenVINO → 尝试追加 OpenVINO EP（按 <see cref="OpenVinoDeviceType"/> 指定设备），成功返回 Success；</para>
-    /// <para>4. EP 注册异常 → 返回 Failure，调用方回退 CPU。</para>
+    /// <para>2. ExecutionProvider = OpenVINO → 尝试追加 OpenVINO EP（按 <see cref="OpenVinoDeviceType"/> 指定设备），成功返回 Success；</para>
+    /// <para>3. EP 注册异常 → 返回 Failure，调用方回退 CPU。</para>
     /// </remarks>
     public Result ConfigureSessionOptions(SessionOptions options)
     {
-        // 向后兼容：PreferNpu=false 强制 CPU
-        var effectiveEp = !_preferNpu ? ExecutionProviderMode.CPU : _executionProvider;
-
-        if (effectiveEp == ExecutionProviderMode.CPU)
+        if (_executionProvider == ExecutionProviderMode.CPU)
         {
             ActiveExecutionProvider = "CPU";
-            return Result.Failure(_preferNpu ? "已配置为 CPU EP" : "用户已禁用 NPU 加速");
+            return Result.Failure("已配置为 CPU EP");
         }
 
         try
         {
-            switch (effectiveEp)
+            switch (_executionProvider)
             {
-                case ExecutionProviderMode.DirectML:
-                    // DirectML device 0：通常为主 GPU/NPU 适配器
-                    // 在 Windows 11 24H2+ 配合 DirectML 12 时，NPU 支持的算子会自动 offload 到 NPU
-                    options.AppendExecutionProvider_DML(0);
-                    ActiveExecutionProvider = "DirectML";
-                    _logger.LogInformation("已启用 DirectML EP（device 0）进行推理加速");
-                    return Result.Success();
-
                 case ExecutionProviderMode.OpenVINO:
                     ConfigureOpenVinoEp(options);
                     return Result.Success();
 
                 default:
                     ActiveExecutionProvider = "CPU";
-                    return Result.Failure($"未支持的 EP 模式: {effectiveEp}");
+                    return Result.Failure($"未支持的 EP 模式: {_executionProvider}");
             }
         }
         catch (Exception ex)
         {
             // EP 注册失败可能源于 native 库未加载、驱动缺失、设备不可用等
             ActiveExecutionProvider = "CPU";
-            _logger.LogWarning(ex, "{Ep} EP 注册失败，将回退到 CPU EP", effectiveEp);
+            _logger.LogWarning(ex, "{Ep} EP 注册失败，将回退到 CPU EP", _executionProvider);
             return Result.Failure(ex);
         }
     }
@@ -124,7 +105,7 @@ public class HardwareAccelerator : IHardwareAccelerator
     /// <param name="options">待配置的会话选项</param>
     /// <remarks>
     /// <para>使用 ORT 1.22 的字符串重载 <see cref="SessionOptions.AppendExecutionProvider_OpenVINO(string)"/>
-    /// 指定 device_type（NPU/GPU/AUTO）。</para>
+    /// 指定 device_type（GPU/NPU/AUTO）。</para>
     /// <para>编译缓存（cache_dir）通过 <see cref="SessionOptions.AddSessionConfigEntry"/> 传入，
     /// 对应 OpenVINO EP 的 <c>session.openvino.cache_dir</c> 配置项。</para>
     /// <para>由于 native 库切换由 <see cref="EpNativeLoader"/> 在启动时完成，此处假设 OpenVINO native 库已就位。</para>
@@ -133,10 +114,10 @@ public class HardwareAccelerator : IHardwareAccelerator
     {
         var deviceType = _openVinoDevice switch
         {
-            OpenVinoDeviceType.NPU => "NPU",
             OpenVinoDeviceType.GPU => "GPU",
+            OpenVinoDeviceType.NPU => "NPU",
             OpenVinoDeviceType.AUTO => "AUTO",
-            _ => "NPU"
+            _ => "GPU"
         };
 
         if (!string.IsNullOrWhiteSpace(_openVinoCacheDir))

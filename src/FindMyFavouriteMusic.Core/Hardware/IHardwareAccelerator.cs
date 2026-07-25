@@ -9,7 +9,8 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 /// <remarks>
 /// <para>该接口将"硬件检测"与"EP 配置"从特征提取器中解耦，使提取器仅关注推理流水线本身。</para>
 /// <para>典型用法：提取器在 <c>LoadModel</c> 时调用 <see cref="ConfigureSessionOptions"/>，
-/// 根据返回结果决定使用 DirectML EP（成功）还是回退到 CPU EP（失败）。</para>
+/// 根据返回结果决定使用 OpenVINO EP（成功）还是回退到 CPU EP（失败）。</para>
+/// <para>v2.0 起移除 DirectML EP，仅保留 OpenVINO + CPU 双 EP 架构。</para>
 /// </remarks>
 public interface IHardwareAccelerator
 {
@@ -20,7 +21,7 @@ public interface IHardwareAccelerator
     string? NpuDeviceName { get; }
 
     /// <summary>
-    /// 当前实际生效的 Execution Provider 名称（如 "CPU"、"DirectML"、"OpenVINO(NPU)"）。
+    /// 当前实际生效的 Execution Provider 名称（如 "CPU"、"OpenVINO(GPU)"、"OpenVINO(NPU)"）。
     /// </summary>
     /// <remarks>该值在每次 <see cref="ConfigureSessionOptions"/> 调用后更新，反映最近一次加载模型所用的 EP。</remarks>
     string ActiveExecutionProvider { get; }
@@ -29,10 +30,10 @@ public interface IHardwareAccelerator
     /// 根据检测结果与配置策略，为 ONNX Runtime 会话配置 Execution Provider。
     /// </summary>
     /// <param name="options">待配置的会话选项对象，方法内部会向其追加 EP。</param>
-    /// <returns>成功表示已追加目标 EP（DirectML / OpenVINO，调用方应使用该 options 创建会话）；失败表示应回退到 CPU EP（使用默认 options 或不附加 EP）。</returns>
+    /// <returns>成功表示已追加 OpenVINO EP（调用方应使用该 options 创建会话）；失败表示应回退到 CPU EP（使用默认 options 或不附加 EP）。</returns>
     /// <remarks>
     /// <para>具体 EP 类型由 <see cref="Configuration.OnnxModelOptions.ExecutionProvider"/> 配置决定，
-    /// 调用方无需关心是 DirectML 还是 OpenVINO。</para>
+    /// 调用方无需关心是 CPU 还是 OpenVINO。</para>
     /// <para>方法内部捕获 EP 注册异常并返回 Failure，确保调用方可以无异常地回退到 CPU。</para>
     /// </remarks>
     Result ConfigureSessionOptions(SessionOptions options);

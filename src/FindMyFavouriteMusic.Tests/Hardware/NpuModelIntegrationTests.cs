@@ -9,18 +9,18 @@ using Xunit.Abstractions;
 namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Hardware;
 
 /// <summary>
-/// NPU 加速集成测试：使用仓库 Models/ 目录下的真实 ONNX 模型，
+/// OpenVINO 加速集成测试：使用仓库 Models/ 目录下的真实 ONNX 模型，
 /// 验证 <see cref="HardwareAccelerator"/> 与深度特征提取器能否实际调用 NPU/GPU 进行推理。
 /// </summary>
 /// <remarks>
+/// <para>v2.0 起仅测试 OpenVINO + CPU 双 EP 架构（DirectML 已移除）。</para>
 /// <para><b>测试依赖：</b>仓库根目录下的 <c>Models/VGGish.onnx</c> 与 <c>Models/MERT-v1-95M.onnx</c>。</para>
 /// <para><b>测试目标：</b></para>
-/// <para>1. 验证模型加载时 EP 选择逻辑能正确执行（CPU 或 DirectML）；</para>
+/// <para>1. 验证模型加载时 EP 选择逻辑能正确执行（CPU 或 OpenVINO）；</para>
 /// <para>2. 验证实际推理能完成且输出维度正确；</para>
-/// <para>3. 通过 <see cref="ITestOutputHelper"/> 输出当前生效 EP，供人工确认 NPU 是否被调用。</para>
-/// <para><b>关于"是否调用 NPU"的判定：</b>DirectML EP 在 Windows 11 24H2+ 会自动将支持的算子
-/// offload 到 NPU。测试仅能确认 EP=DirectML，无法直接观测 NPU 利用率；
-/// 若需进一步验证，建议配合任务管理器或 Intel NPU 工具查看推理期间 NPU 负载。</para>
+/// <para>3. 通过 <see cref="ITestOutputHelper"/> 输出当前生效 EP，供人工确认 NPU/GPU 是否被调用。</para>
+/// <para><b>关于"是否调用 NPU/GPU"的判定：</b>测试仅能确认 EP=OpenVINO(NPU/GPU/AUTO)，
+/// 无法直接观测硬件利用率；若需进一步验证，建议配合任务管理器或 Intel NPU 工具查看推理期间硬件负载。</para>
 /// </remarks>
 public class NpuModelIntegrationTests
 {
@@ -44,7 +44,8 @@ public class NpuModelIntegrationTests
         var options = Options.Create(new OnnxModelOptions
         {
             EnableDeepFeatures = false, // 避免构造时自动加载，手动控制
-            PreferNpu = true
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
         });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var extractor = new DeepFeatureExtractor(
@@ -78,7 +79,8 @@ public class NpuModelIntegrationTests
         var options = Options.Create(new OnnxModelOptions
         {
             EnableDeepFeatures = false,
-            PreferNpu = true
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
         });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var extractor = new MertFeatureExtractor(
@@ -101,7 +103,7 @@ public class NpuModelIntegrationTests
 
     /// <summary>
     /// 使用 VGGish 对一段合成正弦波音频执行实际推理，
-    /// 验证返回向量维度为 128，并输出 EP 信息以便人工核查 NPU 调用情况。
+    /// 验证返回向量维度为 128，并输出 EP 信息以便人工核查 NPU/GPU 调用情况。
     /// </summary>
     [Fact]
     public async Task ExtractAsync_VGGish_Returns128Dimension()
@@ -113,7 +115,8 @@ public class NpuModelIntegrationTests
         var options = Options.Create(new OnnxModelOptions
         {
             EnableDeepFeatures = false,
-            PreferNpu = true
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
         });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var extractor = new DeepFeatureExtractor(
@@ -144,17 +147,16 @@ public class NpuModelIntegrationTests
     }
 
     /// <summary>
-    /// 验证 MERT 在 DirectML EP 推理失败时能自动回退 CPU EP 并成功完成推理。
+    /// 验证 MERT 在 OpenVINO EP 推理失败时能自动回退 CPU EP 并成功完成推理。
     /// </summary>
     /// <remarks>
-    /// <para><b>测试场景：</b>MERT 模型含动态形状 Reshape 算子，DirectML EP 无法执行
-    /// （错误码 <c>80070057 E_INVALIDARG</c>，发生在 <c>node_view_1</c> Reshape 节点）。</para>
+    /// <para><b>测试场景：</b>MERT 模型含动态形状 Reshape 算子，某些 OpenVINO 设备（如 NPU）可能无法执行。</para>
     /// <para><b>预期行为：</b>提取器捕获推理异常后，自动用 CPU EP 重建会话并重试推理，
-    /// 最终返回 768 维特征向量，<see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 从 DirectML 切换为 CPU。</para>
-    /// <para>此测试验证回退机制保证了 MERT 模式在 DirectML 不兼容时仍可用。</para>
+    /// 最终返回 768 维特征向量，<see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 从 OpenVINO 切换为 CPU。</para>
+    /// <para>此测试验证回退机制保证了 MERT 模式在 OpenVINO 不兼容时仍可用。</para>
     /// </remarks>
     [Fact]
-    public async Task ExtractAsync_MERT_FallsBackToCpu_WhenDirectmlFails()
+    public async Task ExtractAsync_MERT_FallsBackToCpu_WhenOpenVinoFails()
     {
         // Arrange
         var modelPath = TryResolveModelPath("MERT-v1-95M.onnx");
@@ -163,7 +165,8 @@ public class NpuModelIntegrationTests
         var options = Options.Create(new OnnxModelOptions
         {
             EnableDeepFeatures = false,
-            PreferNpu = true
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
         });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var extractor = new MertFeatureExtractor(
@@ -191,34 +194,44 @@ public class NpuModelIntegrationTests
         _output.WriteLine($"  推理耗时: {sw.ElapsedMilliseconds} ms");
         _output.WriteLine($"  IsSuccess: {result.IsSuccess}");
 
-        if (epBeforeInference == "DirectML")
+        if (epBeforeInference != "CPU" && epBeforeInference != epAfterInference)
         {
-            // DirectML 启用场景：MERT 推理应触发 CPU 回退，最终成功
-            result.IsSuccess.Should().BeTrue("MERT 在 DirectML 失败后应回退 CPU 并成功推理");
+            // OpenVINO 启用但推理失败场景：MERT 推理应触发 CPU 回退，最终成功
+            result.IsSuccess.Should().BeTrue("MERT 在 OpenVINO 失败后应回退 CPU 并成功推理");
             result.Value!.Length.Should().Be(768, "MERT 输出固定为 768 维");
-            epAfterInference.Should().Be("CPU", "DirectML 推理失败后应回退到 CPU EP");
+            epAfterInference.Should().Be("CPU", "OpenVINO 推理失败后应回退到 CPU EP");
 
             _output.WriteLine($"  输出维度: {result.Value.Length}");
             _output.WriteLine($"  输出向量前 5 维: [{string.Join(", ", result.Value.Take(5).Select(v => v.ToString("F4")))}]");
-            _output.WriteLine("  结论: MERT + DirectML 失败后成功回退 CPU EP，推理完成");
+            _output.WriteLine("  结论: MERT + OpenVINO 失败后成功回退 CPU EP，推理完成");
         }
-        else
+        else if (epBeforeInference == "CPU")
         {
-            // DirectML 不可用场景：直接 CPU 推理
+            // OpenVINO 不可用场景：直接 CPU 推理
             result.IsSuccess.Should().BeTrue("CPU EP 下 MERT 推理应成功");
             result.Value!.Length.Should().Be(768, "MERT 输出固定为 768 维");
             epAfterInference.Should().Be("CPU");
 
             _output.WriteLine($"  输出维度: {result.Value.Length}");
-            _output.WriteLine("  结论: MERT 直接使用 CPU EP 推理成功（DirectML 不可用）");
+            _output.WriteLine("  结论: MERT 直接使用 CPU EP 推理成功（OpenVINO 不可用）");
+        }
+        else
+        {
+            // OpenVINO 启用且推理成功场景：未触发回退
+            result.IsSuccess.Should().BeTrue("MERT 在 OpenVINO 下应成功推理");
+            result.Value!.Length.Should().Be(768, "MERT 输出固定为 768 维");
+            epAfterInference.Should().Be(epBeforeInference, "OpenVINO 推理成功时不应切换 EP");
+
+            _output.WriteLine($"  输出维度: {result.Value.Length}");
+            _output.WriteLine($"  结论: MERT 直接使用 {epBeforeInference} EP 推理成功（未触发回退）");
         }
     }
 
     /// <summary>
-    /// 比较开启与关闭 PreferNpu 时的推理耗时，作为 NPU/GPU 加速效果的粗略参考。
+    /// 比较开启 OpenVINO 与关闭（强制 CPU）时的推理耗时，作为 NPU/GPU 加速效果的粗略参考。
     /// </summary>
     /// <remarks>
-    /// <para>注意：单次推理的耗时不一定稳定，且 DirectML 首次加载会有编译开销。
+    /// <para>注意：单次推理的耗时不一定稳定，且 OpenVINO 首次加载会有编译开销。
     /// 此测试仅用于观察 EP 切换是否生效，不作为严格的性能基准。</para>
     /// </remarks>
     [Fact]
@@ -231,8 +244,13 @@ public class NpuModelIntegrationTests
         const int sampleRate = 16000;
         var samples = GenerateSineWave(440.0, sampleRate, 1.0);
 
-        // 启用 NPU 路径
-        var enabledOptions = Options.Create(new OnnxModelOptions { EnableDeepFeatures = false, PreferNpu = true });
+        // 启用 OpenVINO 路径
+        var enabledOptions = Options.Create(new OnnxModelOptions
+        {
+            EnableDeepFeatures = false,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
+        });
         var enabledAccelerator = new HardwareAccelerator(enabledOptions, NullLogger<HardwareAccelerator>.Instance);
         var enabledExtractor = new DeepFeatureExtractor(
             enabledOptions, enabledAccelerator, NullLogger<DeepFeatureExtractor>.Instance);
@@ -245,12 +263,16 @@ public class NpuModelIntegrationTests
         // Assert
         enabledResult.IsSuccess.Should().BeTrue();
 
-        _output.WriteLine($"VGGish 推理（PreferNpu=true）");
+        _output.WriteLine($"VGGish 推理（ExecutionProvider=OpenVINO）");
         _output.WriteLine($"  实际 EP: {enabledAccelerator.ActiveExecutionProvider}");
         _output.WriteLine($"  耗时: {sw.ElapsedMilliseconds} ms");
 
-        // 关闭 NPU 路径（强制 CPU）
-        var disabledOptions = Options.Create(new OnnxModelOptions { EnableDeepFeatures = false, PreferNpu = false });
+        // 关闭加速路径（强制 CPU）
+        var disabledOptions = Options.Create(new OnnxModelOptions
+        {
+            EnableDeepFeatures = false,
+            ExecutionProvider = ExecutionProviderMode.CPU
+        });
         var disabledAccelerator = new HardwareAccelerator(disabledOptions, NullLogger<HardwareAccelerator>.Instance);
         var disabledExtractor = new DeepFeatureExtractor(
             disabledOptions, disabledAccelerator, NullLogger<DeepFeatureExtractor>.Instance);
@@ -263,7 +285,7 @@ public class NpuModelIntegrationTests
         disabledResult.IsSuccess.Should().BeTrue();
         disabledAccelerator.ActiveExecutionProvider.Should().Be("CPU");
 
-        _output.WriteLine($"VGGish 推理（PreferNpu=false, 强制 CPU）");
+        _output.WriteLine($"VGGish 推理（ExecutionProvider=CPU, 强制 CPU）");
         _output.WriteLine($"  耗时: {sw.ElapsedMilliseconds} ms");
 
         // 两次输出维度应一致（128）

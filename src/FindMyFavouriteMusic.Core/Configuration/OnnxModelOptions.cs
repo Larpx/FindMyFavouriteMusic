@@ -20,39 +20,29 @@ public class OnnxModelOptions
     public bool EnableDeepFeatures { get; set; }
 
     /// <summary>
-    /// 是否优先使用 NPU/GPU 加速推理。
-    /// </summary>
-    /// <remarks>
-    /// <para>向后兼容字段：</para>
-    /// <para>- 设为 false 时强制使用 CPU EP（覆盖 <see cref="ExecutionProvider"/>）；</para>
-    /// <para>- 设为 true 时按 <see cref="ExecutionProvider"/> 字段选择具体 EP（DirectML / OpenVINO）。</para>
-    /// <para>默认 true：保持旧行为兼容。</para>
-    /// </remarks>
-    public bool PreferNpu { get; set; } = true;
-
-    /// <summary>
     /// 深度模型推理使用的 Execution Provider 类型。
     /// </summary>
     /// <remarks>
-    /// <para>默认 <see cref="ExecutionProviderMode.DirectML"/>：保持与旧版本相同的行为；</para>
+    /// <para>默认 <see cref="ExecutionProviderMode.OpenVINO"/>：基于性能测试结论，
+    /// OpenVINO(GPU) 对 MERT 有 2.24x 加速，且 OpenVINO 包含完整 CPU EP，
+    /// CPU 模式下也可直接使用同一 native 库。</para>
     /// <para>设为 <see cref="ExecutionProviderMode.OpenVINO"/> 时使用 Intel OpenVINO EP，
-    /// 配合 <see cref="OpenVinoDevice"/> 指定目标设备（NPU/GPU/AUTO）；</para>
-    /// <para>设为 <see cref="ExecutionProviderMode.CPU"/> 时强制使用 CPU EP。</para>
-    /// <para>注意：当 <see cref="PreferNpu"/> = false 时，本字段被忽略，强制 CPU。</para>
-    /// <para>注意：DirectML 与 OpenVINO 的 native 库互斥，启动时由
-    /// <c>EpNativeLoader</c> 根据本字段复制对应 native 库到输出根目录。</para>
+    /// 配合 <see cref="OpenVinoDevice"/> 指定目标设备（NPU/GPU/AUTO，默认 GPU）；</para>
+    /// <para>设为 <see cref="ExecutionProviderMode.CPU"/> 时使用纯 CPU EP。</para>
+    /// <para>注意：OpenVINO 的 native 库（onnxruntime.dll）由
+    /// <c>EpNativeLoader</c> 在启动时从 <c>ep-openvino/</c> 子目录复制到输出根目录。</para>
     /// </remarks>
-    public ExecutionProviderMode ExecutionProvider { get; set; } = ExecutionProviderMode.DirectML;
+    public ExecutionProviderMode ExecutionProvider { get; set; } = ExecutionProviderMode.OpenVINO;
 
     /// <summary>
     /// OpenVINO EP 的目标设备类型，仅当 <see cref="ExecutionProvider"/> = OpenVINO 时生效。
     /// </summary>
     /// <remarks>
-    /// <para><see cref="OpenVinoDeviceType.NPU"/>：Intel AI Boost NPU（默认，符合 README TODO 初衷）；</para>
-    /// <para><see cref="OpenVinoDeviceType.GPU"/>：Intel Arc 集成 GPU；</para>
+    /// <para><see cref="OpenVinoDeviceType.GPU"/>：Intel Arc 集成 GPU（默认，测试最优）；</para>
+    /// <para><see cref="OpenVinoDeviceType.NPU"/>：Intel AI Boost NPU；</para>
     /// <para><see cref="OpenVinoDeviceType.AUTO"/>：OpenVINO 运行时自动选择最佳设备。</para>
     /// </remarks>
-    public OpenVinoDeviceType OpenVinoDevice { get; set; } = OpenVinoDeviceType.NPU;
+    public OpenVinoDeviceType OpenVinoDevice { get; set; } = OpenVinoDeviceType.GPU;
 
     /// <summary>
     /// OpenVINO 编译缓存目录（可选）。
@@ -80,19 +70,18 @@ public enum DeepModelType
 /// ONNX Runtime Execution Provider 选择模式。
 /// </summary>
 /// <remarks>
-/// <para>DirectML 与 OpenVINO 的 native 库（onnxruntime.dll）物理互斥，
-/// 启动时由 <c>EpNativeLoader</c> 根据配置复制对应 native 库到输出根目录，
-/// 实现运行时通过配置文件切换 EP，无需重新编译。</para>
+/// <para>v2.0 起移除 DirectML EP（测试表明对 VGGish 比 CPU 慢，对 MERT 触发 CPU 回退），
+/// 仅保留 OpenVINO + CPU 双 EP 架构。</para>
+/// <para>OpenVINO 的 native 库（onnxruntime.dll）由 <c>EpNativeLoader</c> 在启动时
+/// 从 <c>ep-openvino/</c> 子目录复制到输出根目录；CPU 模式同样使用该 native 库
+/// （OpenVINO 包含完整 CPU EP）。</para>
 /// </remarks>
 public enum ExecutionProviderMode
 {
-    /// <summary>强制使用 CPU EP，不加载任何加速 native 库</summary>
+    /// <summary>使用纯 CPU EP，不附加任何加速器</summary>
     CPU,
 
-    /// <summary>使用 DirectML EP（Windows 通用加速方案，通过 DirectML 12 自动 offload 到 NPU/GPU）</summary>
-    DirectML,
-
-    /// <summary>使用 Intel OpenVINO EP（Intel 官方最优方案，配合 <see cref="OnnxModelOptions.OpenVinoDevice"/> 指定目标设备）</summary>
+    /// <summary>使用 Intel OpenVINO EP，配合 <see cref="OnnxModelOptions.OpenVinoDevice"/> 指定目标设备</summary>
     OpenVINO
 }
 
@@ -101,11 +90,11 @@ public enum ExecutionProviderMode
 /// </summary>
 public enum OpenVinoDeviceType
 {
+    /// <summary>Intel 集成或独立 GPU（测试最优，对 MERT 有 2.24x 加速）</summary>
+    GPU,
+
     /// <summary>Intel Neural Processing Unit（如 Intel AI Boost NPU）</summary>
     NPU,
-
-    /// <summary>Intel 集成或独立 GPU</summary>
-    GPU,
 
     /// <summary>OpenVINO 运行时自动选择最佳设备</summary>
     AUTO

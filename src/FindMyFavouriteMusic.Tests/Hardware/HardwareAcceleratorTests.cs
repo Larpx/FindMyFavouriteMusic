@@ -13,6 +13,7 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Hardware;
 /// <see cref="HardwareAccelerator"/> 单元测试：验证 NPU 检测与 EP 配置的健壮性。
 /// </summary>
 /// <remarks>
+/// <para>v2.0 起仅测试 OpenVINO + CPU 双 EP 架构（DirectML 已移除）。</para>
 /// <para>这些测试不依赖任何 ONNX 模型文件，可在任意 Windows 环境运行。</para>
 /// <para>测试关注点：</para>
 /// <para>1. 构造与检测不抛异常（即使 WMI 服务不可用）；</para>
@@ -35,7 +36,7 @@ public class HardwareAcceleratorTests
     public void Constructor_DetectNpu_DoesNotThrow()
     {
         // Arrange
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var options = Options.Create(new OnnxModelOptions { ExecutionProvider = ExecutionProviderMode.OpenVINO });
         var logger = NullLogger<HardwareAccelerator>.Instance;
 
         // Act
@@ -54,7 +55,7 @@ public class HardwareAcceleratorTests
     public void Constructor_DefaultState_IsConsistent()
     {
         // Arrange
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var options = Options.Create(new OnnxModelOptions { ExecutionProvider = ExecutionProviderMode.OpenVINO });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
 
         // Act
@@ -79,14 +80,17 @@ public class HardwareAcceleratorTests
     }
 
     /// <summary>
-    /// 当 <see cref="OnnxModelOptions.PreferNpu"/> = false 时，无论是否检测到 NPU，
+    /// 当 <see cref="OnnxModelOptions.ExecutionProvider"/> = CPU 时，
     /// <see cref="IHardwareAccelerator.ConfigureSessionOptions"/> 都应返回 Failure 且 EP 保持 CPU。
     /// </summary>
     [Fact]
-    public void ConfigureSessionOptions_PreferNpuFalse_ReturnsFailureAndKeepsCpu()
+    public void ConfigureSessionOptions_ExecutionProviderCpu_ReturnsFailureAndKeepsCpu()
     {
-        // Arrange
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = false });
+        // Arrange：显式 CPU EP
+        var options = Options.Create(new OnnxModelOptions
+        {
+            ExecutionProvider = ExecutionProviderMode.CPU
+        });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var sessionOptions = new SessionOptions();
 
@@ -103,14 +107,18 @@ public class HardwareAcceleratorTests
     /// 且 <see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 应反映实际配置结果。
     /// </summary>
     /// <remarks>
-    /// 此测试不强制要求成功启用 DirectML（依赖运行时驱动与 DirectML 运行时），
+    /// 此测试不强制要求成功启用 OpenVINO（依赖运行时驱动与 OpenVINO native 库），
     /// 仅验证调用安全性与状态一致性。
     /// </remarks>
     [Fact]
     public void ConfigureSessionOptions_AlwaysSafe_NoExceptionAndStateConsistent()
     {
         // Arrange
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var options = Options.Create(new OnnxModelOptions
+        {
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
+        });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var sessionOptions = new SessionOptions();
 
@@ -121,13 +129,13 @@ public class HardwareAcceleratorTests
         // 不抛异常已隐含在 Act 中；状态必须与返回结果一致
         if (result.IsSuccess)
         {
-            accelerator.ActiveExecutionProvider.Should().Be("DirectML");
-            _output.WriteLine("DirectML EP 配置成功，将尝试使用 NPU/GPU 加速");
+            accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(GPU)");
+            _output.WriteLine("OpenVINO(GPU) EP 配置成功，将尝试使用 GPU 加速");
         }
         else
         {
             accelerator.ActiveExecutionProvider.Should().Be("CPU");
-            _output.WriteLine($"DirectML EP 不可用，回退 CPU: {result.Error}");
+            _output.WriteLine($"OpenVINO(GPU) EP 不可用，回退 CPU: {result.Error}");
         }
     }
 
@@ -139,7 +147,11 @@ public class HardwareAcceleratorTests
     public void ConfigureSessionOptions_MultipleCalls_AreStable()
     {
         // Arrange
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var options = Options.Create(new OnnxModelOptions
+        {
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
+        });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
 
         // Act & Assert：连续三次调用均不应抛异常
@@ -149,8 +161,8 @@ public class HardwareAcceleratorTests
             act.Should().NotThrow();
         }
 
-        // 最终状态应为 CPU 或 DirectML 之一
-        accelerator.ActiveExecutionProvider.Should().BeOneOf("CPU", "DirectML");
+        // 最终状态应为 CPU 或 OpenVINO(GPU) 之一
+        accelerator.ActiveExecutionProvider.Should().BeOneOf("CPU", "OpenVINO(GPU)");
     }
 
     /// <summary>
@@ -161,7 +173,7 @@ public class HardwareAcceleratorTests
     public void MarkCpuFallbackActive_AlreadyCpu_IsSafeAndIdempotent()
     {
         // Arrange：未调用 ConfigureSessionOptions 前 EP 默认为 CPU
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var options = Options.Create(new OnnxModelOptions { ExecutionProvider = ExecutionProviderMode.OpenVINO });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         accelerator.ActiveExecutionProvider.Should().Be("CPU");
 
@@ -176,30 +188,34 @@ public class HardwareAcceleratorTests
     }
 
     /// <summary>
-    /// 当 DirectML EP 可用时，<see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 应将 EP 从 DirectML 切换为 CPU；
-    /// 若环境不支持 DirectML，则跳过切换验证。
+    /// 当 OpenVINO EP 可用时，<see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 应将 EP 从 OpenVINO 切换为 CPU；
+    /// 若环境不支持 OpenVINO，则跳过切换验证。
     /// </summary>
     /// <remarks>
     /// 此测试验证提取器推理失败回退 CPU 时，HardwareAccelerator 状态能正确更新，
     /// 确保设置页显示与实际生效的 EP 一致。
     /// </remarks>
     [Fact]
-    public void MarkCpuFallbackActive_FromDirectML_SetsToCpu_WhenDirectmlAvailable()
+    public void MarkCpuFallbackActive_FromOpenVino_SetsToCpu_WhenOpenVinoAvailable()
     {
         // Arrange
-        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var options = Options.Create(new OnnxModelOptions
+        {
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
+        });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
 
-        // 尝试启用 DirectML EP
+        // 尝试启用 OpenVINO EP
         var epResult = accelerator.ConfigureSessionOptions(new SessionOptions());
         if (!epResult.IsSuccess)
         {
-            _output.WriteLine("跳过：当前环境 DirectML 不可用，无法测试从 DirectML 回退 CPU 的状态切换");
+            _output.WriteLine("跳过：当前环境 OpenVINO 不可用，无法测试从 OpenVINO 回退 CPU 的状态切换");
             return;
         }
 
-        // Assert 初始状态：DirectML 已启用
-        accelerator.ActiveExecutionProvider.Should().Be("DirectML");
+        // Assert 初始状态：OpenVINO 已启用
+        accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(GPU)");
 
         // Act：调用 MarkCpuFallbackActive 模拟推理失败后的回退
         accelerator.MarkCpuFallbackActive();
@@ -211,59 +227,10 @@ public class HardwareAcceleratorTests
         accelerator.MarkCpuFallbackActive();
         accelerator.ActiveExecutionProvider.Should().Be("CPU");
 
-        _output.WriteLine("DirectML → CPU 回退标记验证通过");
+        _output.WriteLine("OpenVINO(GPU) → CPU 回退标记验证通过");
     }
 
-    // ===== OpenVINO EP 配置测试 =====
-
-    /// <summary>
-    /// 验证 <see cref="OnnxModelOptions.PreferNpu"/> = false 时，即使
-    /// <see cref="OnnxModelOptions.ExecutionProvider"/> = OpenVINO，也应强制 CPU EP。
-    /// </summary>
-    /// <remarks>确保向后兼容字段 PreferNpu 仍能正确覆盖新的 ExecutionProvider 字段。</remarks>
-    [Fact]
-    public void ConfigureSessionOptions_OpenVinoButPreferNpuFalse_ForcesCpu()
-    {
-        // Arrange：PreferNpu=false + ExecutionProvider=OpenVINO
-        var options = Options.Create(new OnnxModelOptions
-        {
-            PreferNpu = false,
-            ExecutionProvider = ExecutionProviderMode.OpenVINO,
-            OpenVinoDevice = OpenVinoDeviceType.NPU
-        });
-        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
-        var sessionOptions = new SessionOptions();
-
-        // Act
-        var result = accelerator.ConfigureSessionOptions(sessionOptions);
-
-        // Assert：应返回 Failure 且 EP 保持 CPU，不应尝试加载 OpenVINO native 库
-        result.IsSuccess.Should().BeFalse("PreferNpu=false 应强制 CPU，跳过 OpenVINO EP 注册");
-        accelerator.ActiveExecutionProvider.Should().Be("CPU");
-    }
-
-    /// <summary>
-    /// 验证 <see cref="ExecutionProviderMode.CPU"/> 显式配置时，
-    /// <see cref="IHardwareAccelerator.ConfigureSessionOptions"/> 应返回 Failure 并保持 CPU EP。
-    /// </summary>
-    [Fact]
-    public void ConfigureSessionOptions_ExecutionProviderCpu_ReturnsFailureAndKeepsCpu()
-    {
-        // Arrange：显式 CPU EP
-        var options = Options.Create(new OnnxModelOptions
-        {
-            PreferNpu = true, // 注意 PreferNpu=true，但 ExecutionProvider=CPU
-            ExecutionProvider = ExecutionProviderMode.CPU
-        });
-        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
-
-        // Act
-        var result = accelerator.ConfigureSessionOptions(new SessionOptions());
-
-        // Assert
-        result.IsSuccess.Should().BeFalse("ExecutionProvider=CPU 应返回 Failure 提示调用方使用默认 options");
-        accelerator.ActiveExecutionProvider.Should().Be("CPU");
-    }
+    // ===== OpenVINO EP 设备类型测试 =====
 
     /// <summary>
     /// 验证 <see cref="ExecutionProviderMode.OpenVINO"/> + <see cref="OpenVinoDeviceType.NPU"/>
@@ -281,7 +248,6 @@ public class HardwareAcceleratorTests
         // Arrange
         var options = Options.Create(new OnnxModelOptions
         {
-            PreferNpu = true,
             ExecutionProvider = ExecutionProviderMode.OpenVINO,
             OpenVinoDevice = OpenVinoDeviceType.NPU
         });
@@ -312,7 +278,6 @@ public class HardwareAcceleratorTests
         // Arrange
         var options = Options.Create(new OnnxModelOptions
         {
-            PreferNpu = true,
             ExecutionProvider = ExecutionProviderMode.OpenVINO,
             OpenVinoDevice = OpenVinoDeviceType.GPU
         });
@@ -343,7 +308,6 @@ public class HardwareAcceleratorTests
         // Arrange
         var options = Options.Create(new OnnxModelOptions
         {
-            PreferNpu = true,
             ExecutionProvider = ExecutionProviderMode.OpenVINO,
             OpenVinoDevice = OpenVinoDeviceType.AUTO
         });
@@ -381,7 +345,6 @@ public class HardwareAcceleratorTests
         var cacheDir = Path.Combine(Path.GetTempPath(), "fmm-openvino-cache-test");
         var options = Options.Create(new OnnxModelOptions
         {
-            PreferNpu = true,
             ExecutionProvider = ExecutionProviderMode.OpenVINO,
             OpenVinoDevice = OpenVinoDeviceType.NPU,
             OpenVinoCacheDir = cacheDir
@@ -402,46 +365,5 @@ public class HardwareAcceleratorTests
             accelerator.ActiveExecutionProvider.Should().Be("CPU");
             _output.WriteLine($"OpenVINO EP 不可用（缓存目录配置已尝试）: {result.Error}");
         }
-    }
-
-    /// <summary>
-    /// 验证 <see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 在 OpenVINO EP 下调用时，
-    /// 能正确将 <see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 从 OpenVINO 切换为 CPU。
-    /// </summary>
-    /// <remarks>若环境未加载 OpenVINO native 库，跳过切换验证。</remarks>
-    [Fact]
-    public void MarkCpuFallbackActive_FromOpenVino_SetsToCpu_WhenOpenVinoAvailable()
-    {
-        // Arrange
-        var options = Options.Create(new OnnxModelOptions
-        {
-            PreferNpu = true,
-            ExecutionProvider = ExecutionProviderMode.OpenVINO,
-            OpenVinoDevice = OpenVinoDeviceType.NPU
-        });
-        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
-
-        // 尝试启用 OpenVINO EP
-        var epResult = accelerator.ConfigureSessionOptions(new SessionOptions());
-        if (!epResult.IsSuccess)
-        {
-            _output.WriteLine("跳过：当前环境 OpenVINO EP 不可用，无法测试从 OpenVINO 回退 CPU 的状态切换");
-            return;
-        }
-
-        // Assert 初始状态：OpenVINO 已启用
-        accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(NPU)");
-
-        // Act：调用 MarkCpuFallbackActive 模拟推理失败后的回退
-        accelerator.MarkCpuFallbackActive();
-
-        // Assert：EP 应切换为 CPU
-        accelerator.ActiveExecutionProvider.Should().Be("CPU");
-
-        // 幂等：再次调用不应抛异常，EP 保持 CPU
-        accelerator.MarkCpuFallbackActive();
-        accelerator.ActiveExecutionProvider.Should().Be("CPU");
-
-        _output.WriteLine("OpenVINO(NPU) → CPU 回退标记验证通过");
     }
 }
