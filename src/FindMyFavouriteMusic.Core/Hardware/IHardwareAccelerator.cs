@@ -35,4 +35,15 @@ public interface IHardwareAccelerator
     /// <para>方法内部捕获 EP 注册异常并返回 Failure，确保调用方可以无异常地回退到 CPU。</para>
     /// </remarks>
     Result ConfigureSessionOptions(SessionOptions options);
+
+    /// <summary>
+    /// 标记已回退到 CPU EP，更新 <see cref="ActiveExecutionProvider"/> 状态。
+    /// </summary>
+    /// <remarks>
+    /// <para>提取器在推理失败后自动用 CPU EP 重建会话时调用此方法，
+    /// 确保 <see cref="ActiveExecutionProvider"/> 与实际生效的 EP 一致，
+    /// 设置页显示的状态才能正确反映"已回退 CPU"。</para>
+    /// <para>若当前已是 CPU EP，调用此方法为空操作。</para>
+    /// </remarks>
+    void MarkCpuFallbackActive();
 }

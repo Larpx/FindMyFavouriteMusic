@@ -88,27 +88,53 @@ public class HardwareAccelerator : IHardwareAccelerator
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>提取器在推理失败后用 CPU EP 重建会话时调用此方法。</para>
+    /// <para>幂等：若当前已是 CPU EP，不重复记录日志。</para>
+    /// </remarks>
+    public void MarkCpuFallbackActive()
+    {
+        if (ActiveExecutionProvider != "CPU")
+        {
+            ActiveExecutionProvider = "CPU";
+            _logger.LogWarning("已回退到 CPU EP（推理失败触发的自动降级）");
+        }
+    }
+
     /// <summary>
-    /// 通过 WMI 查询 NPU 设备，匹配关键词见类备注。
+    /// 通过 WMI 查询 NPU 设备，并在代码层精确过滤以排除误报。
     /// </summary>
     /// <returns>检测到 NPU 时返回 (true, 设备名)；否则返回 (false, null)。</returns>
-    /// <remarks>WMI 服务不可用或查询失败时返回 (false, null)，不抛异常。</remarks>
+    /// <remarks>
+    /// <para>WMI 服务不可用或查询失败时返回 (false, null)，不抛异常。</para>
+    /// <para><b>关键词校准说明（WMI LIKE 括号 bug 规避）：</b></para>
+    /// <para>早期版本使用宽泛的 <c>%AI Boost%</c> 关键词，会误匹配 "Microsoft Input Configuration Device" 等 HID 设备。</para>
+    /// <para>收紧为 <c>%Intel(R) AI Boost%</c> 后发现 WMI WQL 的 <c>LIKE</c> 运算符对括号 <c>()</c> 解析异常，
+    /// <c>Name LIKE '%Intel(R) AI Boost%'</c> 仍会误匹配 HID 设备（实测于 Intel Core Ultra 7 155H）。</para>
+    /// <para>最终方案：WMI 用宽泛 <c>%AI Boost%</c> 查询候选，代码层用
+    /// <see cref="string.Contains(string, StringComparison)"/> 精确匹配 <c>Intel(R) AI Boost</c>，
+    /// 彻底排除 HID 类误报。</para>
+    /// </remarks>
     private static (bool available, string? deviceName) DetectNpu()
     {
         try
         {
-            // 关键词覆盖 Intel AI Boost（Meteor Lake+）、通用 NPU、Neural Processing 等命名
-            const string query = "SELECT Name FROM Win32_PnPEntity WHERE " +
-                "Name LIKE '%NPU%' OR " +
-                "Name LIKE '%Intel(R) AI Boost%' OR " +
-                "Name LIKE '%Neural Processing%' OR " +
-                "Name LIKE '%AI Boost%'";
+            // WMI LIKE 对括号 () 解析异常，无法用 '%Intel(R) AI Boost%' 精确查询
+            // 改用宽泛 '%AI Boost%' 查询候选，代码层精确过滤
+            const string query = "SELECT Name FROM Win32_PnPEntity WHERE Name LIKE '%AI Boost%'";
 
             using var searcher = new ManagementObjectSearcher(query);
             foreach (var obj in searcher.Get())
             {
                 var name = obj["Name"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(name))
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                // 代码层精确匹配 Intel 官方 NPU 设备名，排除 HID 等误报
+                if (name.Contains("Intel(R) AI Boost", StringComparison.OrdinalIgnoreCase))
                 {
                     return (true, name);
                 }

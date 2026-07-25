@@ -32,6 +32,20 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
     private InferenceSession? _session;
 
     /// <summary>
+    /// 当前已加载模型的路径，用于推理失败回退 CPU 时重建会话。
+    /// </summary>
+    private string? _modelPath;
+
+    /// <summary>
+    /// 是否已尝试过 CPU 回退，避免推理反复重建会话导致无限循环。
+    /// </summary>
+    /// <remarks>
+    /// <para>仅当 <see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 为 DirectML 且此标志为 false 时，
+    /// 才允许触发一次 CPU 回退。回退后此标志置 true，后续推理失败不再回退。</para>
+    /// </remarks>
+    private bool _hasAttemptedCpuFallback;
+
+    /// <summary>
     /// VGGish 输出嵌入向量的维度。
     /// </summary>
     /// <remarks>该值由 VGGish 模型结构决定，模型最后一层为 128 维全连接层，因此输出固定为 128 维。</remarks>
@@ -110,6 +124,9 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
         try
         {
             _session = CreateSession(modelPath);
+            _modelPath = modelPath;
+            // 新模型加载时重置回退标志，允许后续推理在 DirectML 失败时再次尝试 CPU 回退
+            _hasAttemptedCpuFallback = false;
             _logger.LogInformation("ONNX 模型加载成功: {ModelPath} (EP={EP})", modelPath, _accelerator.ActiveExecutionProvider);
             return Result.Success();
         }
@@ -175,12 +192,89 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
         {
             // CPU 密集型推理，通过 Task.Run 卸载到线程池，避免阻塞调用线程
             var result = await Task.Run(() => ExtractInternal(samples, sampleRate), ct);
+            if (result.IsSuccess || !CanFallbackToCpu())
+            {
+                return result;
+            }
+
+            // Result.Failure 通常是业务逻辑问题（如音频过短），不触发 EP 回退
+            _logger.LogError("深度特征提取失败: {Error}", result.Error);
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "深度特征提取失败");
-            return Result<float[]>.Failure(ex);
+            // 异常通常是 EP 算子不兼容（如 _session.Run 抛出 RuntimeException），尝试 CPU 回退
+            if (!CanFallbackToCpu())
+            {
+                _logger.LogError(ex, "深度特征提取失败");
+                return Result<float[]>.Failure(ex);
+            }
+
+            _logger.LogWarning(ex, "推理异常（EP={EP}），回退到 CPU EP 并重试",
+                _accelerator.ActiveExecutionProvider);
+
+            if (!TryRebuildSessionWithCpu())
+            {
+                return Result<float[]>.Failure(ex);
+            }
+
+            try
+            {
+                var retryResult = await Task.Run(() => ExtractInternal(samples, sampleRate), ct);
+                if (retryResult.IsSuccess)
+                {
+                    _logger.LogInformation("CPU EP 回退后推理成功");
+                }
+                return retryResult;
+            }
+            catch (Exception retryEx)
+            {
+                _logger.LogError(retryEx, "CPU EP 回退后推理仍失败");
+                return Result<float[]>.Failure(retryEx);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 判断当前是否满足"推理失败回退 CPU"的条件。
+    /// </summary>
+    /// <returns>当前 EP 为 DirectML 且尚未尝试过 CPU 回退时返回 true。</returns>
+    /// <remarks>避免在 CPU EP 下重复回退，或已回退后再次触发重建。</remarks>
+    private bool CanFallbackToCpu()
+    {
+        return _accelerator.ActiveExecutionProvider == "DirectML" && !_hasAttemptedCpuFallback;
+    }
+
+    /// <summary>
+    /// 用 CPU EP 重建推理会话，并标记已回退状态。
+    /// </summary>
+    /// <returns>会话重建成功返回 true；失败或模型路径缺失返回 false。</returns>
+    /// <remarks>
+    /// <para>方法会 dispose 旧会话，用默认选项（CPU EP）创建新会话，
+    /// 并通过 <see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 更新 EP 状态。</para>
+    /// </remarks>
+    private bool TryRebuildSessionWithCpu()
+    {
+        _hasAttemptedCpuFallback = true;
+        if (string.IsNullOrEmpty(_modelPath))
+        {
+            _logger.LogError("CPU EP 回退失败：模型路径为空");
+            return false;
+        }
+
+        try
+        {
+            _session?.Dispose();
+            // 使用默认选项创建会话（不附加任何 EP，即 CPU EP）
+            _session = new InferenceSession(_modelPath);
+            _accelerator.MarkCpuFallbackActive();
+            _logger.LogInformation("已用 CPU EP 重建推理会话");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CPU EP 会话重建失败");
+            return false;
         }
     }
 

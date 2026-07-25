@@ -144,18 +144,17 @@ public class NpuModelIntegrationTests
     }
 
     /// <summary>
-    /// 使用 MERT 对一段合成正弦波音频执行实际推理，
-    /// 验证返回向量维度为 768，并输出 EP 信息以便人工核查 NPU 调用情况。
+    /// 验证 MERT 在 DirectML EP 推理失败时能自动回退 CPU EP 并成功完成推理。
     /// </summary>
     /// <remarks>
-    /// <para><b>已知兼容性问题：</b>MERT 模型含动态形状 Reshape 算子，DirectML EP 可能无法执行
+    /// <para><b>测试场景：</b>MERT 模型含动态形状 Reshape 算子，DirectML EP 无法执行
     /// （错误码 <c>80070057 E_INVALIDARG</c>，发生在 <c>node_view_1</c> Reshape 节点）。</para>
-    /// <para>本测试不强制断言推理成功，而是记录推理结果与错误信息：
-    /// 成功则验证 768 维输出；失败则输出详细错误供诊断，并验证错误信息非空。</para>
-    /// <para>这反映了真实的 NPU/GPU 加速能力边界：VGGish 兼容 DirectML，MERT 不兼容。</para>
+    /// <para><b>预期行为：</b>提取器捕获推理异常后，自动用 CPU EP 重建会话并重试推理，
+    /// 最终返回 768 维特征向量，<see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 从 DirectML 切换为 CPU。</para>
+    /// <para>此测试验证回退机制保证了 MERT 模式在 DirectML 不兼容时仍可用。</para>
     /// </remarks>
     [Fact]
-    public async Task ExtractAsync_MERT_RecordsEpCompatibility()
+    public async Task ExtractAsync_MERT_FallsBackToCpu_WhenDirectmlFails()
     {
         // Arrange
         var modelPath = TryResolveModelPath("MERT-v1-95M.onnx");
@@ -171,6 +170,7 @@ public class NpuModelIntegrationTests
             options, accelerator, NullLogger<MertFeatureExtractor>.Instance);
 
         extractor.LoadModel(modelPath!, DeepModelType.MERT);
+        var epBeforeInference = accelerator.ActiveExecutionProvider;
 
         // 生成 5 秒 16kHz 正弦波（MERT 内部会重采样到 24kHz，5 秒为一帧）
         const int sampleRate = 16000;
@@ -181,27 +181,36 @@ public class NpuModelIntegrationTests
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var result = await extractor.ExtractAsync(samples, sampleRate);
         sw.Stop();
+        var epAfterInference = accelerator.ActiveExecutionProvider;
 
         // Assert & 诊断输出
-        _output.WriteLine($"MERT 推理结果（EP={accelerator.ActiveExecutionProvider}）");
+        _output.WriteLine($"MERT 推理结果（回退机制验证）");
+        _output.WriteLine($"  推理前 EP: {epBeforeInference}");
+        _output.WriteLine($"  推理后 EP: {epAfterInference}");
         _output.WriteLine($"  输入样本数: {samples.Length} (采样率 {sampleRate}Hz, 时长 {durationSeconds}s)");
         _output.WriteLine($"  推理耗时: {sw.ElapsedMilliseconds} ms");
         _output.WriteLine($"  IsSuccess: {result.IsSuccess}");
 
-        if (result.IsSuccess)
+        if (epBeforeInference == "DirectML")
         {
-            // DirectML 兼容时：验证 768 维输出
+            // DirectML 启用场景：MERT 推理应触发 CPU 回退，最终成功
+            result.IsSuccess.Should().BeTrue("MERT 在 DirectML 失败后应回退 CPU 并成功推理");
             result.Value!.Length.Should().Be(768, "MERT 输出固定为 768 维");
+            epAfterInference.Should().Be("CPU", "DirectML 推理失败后应回退到 CPU EP");
+
             _output.WriteLine($"  输出维度: {result.Value.Length}");
             _output.WriteLine($"  输出向量前 5 维: [{string.Join(", ", result.Value.Take(5).Select(v => v.ToString("F4")))}]");
-            _output.WriteLine("  结论: MERT + DirectML EP 推理成功，NPU/GPU 加速可用");
+            _output.WriteLine("  结论: MERT + DirectML 失败后成功回退 CPU EP，推理完成");
         }
         else
         {
-            // DirectML 不兼容时：错误信息应非空，反映算子不兼容
-            result.Error.Should().NotBeNullOrEmpty("推理失败应携带错误信息");
-            _output.WriteLine($"  错误: {result.Error}");
-            _output.WriteLine("  结论: MERT + DirectML EP 推理失败（算子不兼容），生产环境需回退 CPU EP");
+            // DirectML 不可用场景：直接 CPU 推理
+            result.IsSuccess.Should().BeTrue("CPU EP 下 MERT 推理应成功");
+            result.Value!.Length.Should().Be(768, "MERT 输出固定为 768 维");
+            epAfterInference.Should().Be("CPU");
+
+            _output.WriteLine($"  输出维度: {result.Value.Length}");
+            _output.WriteLine("  结论: MERT 直接使用 CPU EP 推理成功（DirectML 不可用）");
         }
     }
 

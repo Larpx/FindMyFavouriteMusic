@@ -152,4 +152,65 @@ public class HardwareAcceleratorTests
         // 最终状态应为 CPU 或 DirectML 之一
         accelerator.ActiveExecutionProvider.Should().BeOneOf("CPU", "DirectML");
     }
+
+    /// <summary>
+    /// <see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 在 CPU EP 下调用应安全无副作用，
+    /// 不抛异常且 EP 保持 CPU。
+    /// </summary>
+    [Fact]
+    public void MarkCpuFallbackActive_AlreadyCpu_IsSafeAndIdempotent()
+    {
+        // Arrange：未调用 ConfigureSessionOptions 前 EP 默认为 CPU
+        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+
+        // Act & Assert：多次调用均不抛异常，EP 保持 CPU
+        var act = () =>
+        {
+            accelerator.MarkCpuFallbackActive();
+            accelerator.MarkCpuFallbackActive();
+        };
+        act.Should().NotThrow();
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+    }
+
+    /// <summary>
+    /// 当 DirectML EP 可用时，<see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 应将 EP 从 DirectML 切换为 CPU；
+    /// 若环境不支持 DirectML，则跳过切换验证。
+    /// </summary>
+    /// <remarks>
+    /// 此测试验证提取器推理失败回退 CPU 时，HardwareAccelerator 状态能正确更新，
+    /// 确保设置页显示与实际生效的 EP 一致。
+    /// </remarks>
+    [Fact]
+    public void MarkCpuFallbackActive_FromDirectML_SetsToCpu_WhenDirectmlAvailable()
+    {
+        // Arrange
+        var options = Options.Create(new OnnxModelOptions { PreferNpu = true });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // 尝试启用 DirectML EP
+        var epResult = accelerator.ConfigureSessionOptions(new SessionOptions());
+        if (!epResult.IsSuccess)
+        {
+            _output.WriteLine("跳过：当前环境 DirectML 不可用，无法测试从 DirectML 回退 CPU 的状态切换");
+            return;
+        }
+
+        // Assert 初始状态：DirectML 已启用
+        accelerator.ActiveExecutionProvider.Should().Be("DirectML");
+
+        // Act：调用 MarkCpuFallbackActive 模拟推理失败后的回退
+        accelerator.MarkCpuFallbackActive();
+
+        // Assert：EP 应切换为 CPU
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+
+        // 幂等：再次调用不应抛异常，EP 保持 CPU
+        accelerator.MarkCpuFallbackActive();
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+
+        _output.WriteLine("DirectML → CPU 回退标记验证通过");
+    }
 }
