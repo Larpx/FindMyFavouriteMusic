@@ -213,4 +213,235 @@ public class HardwareAcceleratorTests
 
         _output.WriteLine("DirectML → CPU 回退标记验证通过");
     }
+
+    // ===== OpenVINO EP 配置测试 =====
+
+    /// <summary>
+    /// 验证 <see cref="OnnxModelOptions.PreferNpu"/> = false 时，即使
+    /// <see cref="OnnxModelOptions.ExecutionProvider"/> = OpenVINO，也应强制 CPU EP。
+    /// </summary>
+    /// <remarks>确保向后兼容字段 PreferNpu 仍能正确覆盖新的 ExecutionProvider 字段。</remarks>
+    [Fact]
+    public void ConfigureSessionOptions_OpenVinoButPreferNpuFalse_ForcesCpu()
+    {
+        // Arrange：PreferNpu=false + ExecutionProvider=OpenVINO
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = false,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.NPU
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+        var sessionOptions = new SessionOptions();
+
+        // Act
+        var result = accelerator.ConfigureSessionOptions(sessionOptions);
+
+        // Assert：应返回 Failure 且 EP 保持 CPU，不应尝试加载 OpenVINO native 库
+        result.IsSuccess.Should().BeFalse("PreferNpu=false 应强制 CPU，跳过 OpenVINO EP 注册");
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+    }
+
+    /// <summary>
+    /// 验证 <see cref="ExecutionProviderMode.CPU"/> 显式配置时，
+    /// <see cref="IHardwareAccelerator.ConfigureSessionOptions"/> 应返回 Failure 并保持 CPU EP。
+    /// </summary>
+    [Fact]
+    public void ConfigureSessionOptions_ExecutionProviderCpu_ReturnsFailureAndKeepsCpu()
+    {
+        // Arrange：显式 CPU EP
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = true, // 注意 PreferNpu=true，但 ExecutionProvider=CPU
+            ExecutionProvider = ExecutionProviderMode.CPU
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // Act
+        var result = accelerator.ConfigureSessionOptions(new SessionOptions());
+
+        // Assert
+        result.IsSuccess.Should().BeFalse("ExecutionProvider=CPU 应返回 Failure 提示调用方使用默认 options");
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+    }
+
+    /// <summary>
+    /// 验证 <see cref="ExecutionProviderMode.OpenVINO"/> + <see cref="OpenVinoDeviceType.NPU"/>
+    /// 调用 <see cref="IHardwareAccelerator.ConfigureSessionOptions"/> 的安全性与状态一致性。
+    /// </summary>
+    /// <remarks>
+    /// 此测试不强制要求 OpenVINO EP 注册成功（依赖 OpenVINO native 库是否已加载），
+    /// 仅验证：1) 调用不抛异常；2) 状态与返回结果一致。
+    /// 若 ModuleInitializer 已通过环境变量加载 OpenVINO native 库，应返回 Success 且 EP="OpenVINO(NPU)"；
+    /// 否则返回 Failure 且 EP="CPU"。
+    /// </remarks>
+    [Fact]
+    public void ConfigureSessionOptions_OpenVinoNpu_SafeAndStateConsistent()
+    {
+        // Arrange
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = true,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.NPU
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // Act
+        var result = accelerator.ConfigureSessionOptions(new SessionOptions());
+
+        // Assert：状态必须与返回结果一致
+        if (result.IsSuccess)
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(NPU)");
+            _output.WriteLine("OpenVINO(NPU) EP 配置成功");
+        }
+        else
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("CPU");
+            _output.WriteLine($"OpenVINO(NPU) EP 不可用，回退 CPU: {result.Error}");
+        }
+    }
+
+    /// <summary>
+    /// 验证 <see cref="ExecutionProviderMode.OpenVINO"/> + <see cref="OpenVinoDeviceType.GPU"/> 的调用安全性。
+    /// </summary>
+    [Fact]
+    public void ConfigureSessionOptions_OpenVinoGpu_SafeAndStateConsistent()
+    {
+        // Arrange
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = true,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.GPU
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // Act
+        var result = accelerator.ConfigureSessionOptions(new SessionOptions());
+
+        // Assert
+        if (result.IsSuccess)
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(GPU)");
+            _output.WriteLine("OpenVINO(GPU) EP 配置成功");
+        }
+        else
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("CPU");
+            _output.WriteLine($"OpenVINO(GPU) EP 不可用，回退 CPU: {result.Error}");
+        }
+    }
+
+    /// <summary>
+    /// 验证 <see cref="ExecutionProviderMode.OpenVINO"/> + <see cref="OpenVinoDeviceType.AUTO"/> 的调用安全性。
+    /// </summary>
+    [Fact]
+    public void ConfigureSessionOptions_OpenVinoAuto_SafeAndStateConsistent()
+    {
+        // Arrange
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = true,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.AUTO
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // Act
+        var result = accelerator.ConfigureSessionOptions(new SessionOptions());
+
+        // Assert
+        if (result.IsSuccess)
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(AUTO)");
+            _output.WriteLine("OpenVINO(AUTO) EP 配置成功");
+        }
+        else
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("CPU");
+            _output.WriteLine($"OpenVINO(AUTO) EP 不可用，回退 CPU: {result.Error}");
+        }
+    }
+
+    /// <summary>
+    /// 验证设置 <see cref="OnnxModelOptions.OpenVinoCacheDir"/> 时，
+    /// <see cref="IHardwareAccelerator.ConfigureSessionOptions"/> 不抛异常且状态一致。
+    /// </summary>
+    /// <remarks>
+    /// 缓存目录通过 <see cref="SessionOptions.AddSessionConfigEntry"/> 传入，
+    /// 该方法本身不抛异常（即使目录不存在），由 OpenVINO EP 在编译时按需创建。
+    /// 此测试验证缓存配置与 EP 注册的组合调用安全。
+    /// </remarks>
+    [Fact]
+    public void ConfigureSessionOptions_OpenVinoWithCacheDir_SafeAndStateConsistent()
+    {
+        // Arrange：使用一个临时目录作为缓存路径
+        var cacheDir = Path.Combine(Path.GetTempPath(), "fmm-openvino-cache-test");
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = true,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.NPU,
+            OpenVinoCacheDir = cacheDir
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // Act
+        var result = accelerator.ConfigureSessionOptions(new SessionOptions());
+
+        // Assert：缓存配置不影响 EP 注册成功与否的判定逻辑
+        if (result.IsSuccess)
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(NPU)");
+            _output.WriteLine($"OpenVINO EP 配置成功（缓存目录: {cacheDir}）");
+        }
+        else
+        {
+            accelerator.ActiveExecutionProvider.Should().Be("CPU");
+            _output.WriteLine($"OpenVINO EP 不可用（缓存目录配置已尝试）: {result.Error}");
+        }
+    }
+
+    /// <summary>
+    /// 验证 <see cref="IHardwareAccelerator.MarkCpuFallbackActive"/> 在 OpenVINO EP 下调用时，
+    /// 能正确将 <see cref="IHardwareAccelerator.ActiveExecutionProvider"/> 从 OpenVINO 切换为 CPU。
+    /// </summary>
+    /// <remarks>若环境未加载 OpenVINO native 库，跳过切换验证。</remarks>
+    [Fact]
+    public void MarkCpuFallbackActive_FromOpenVino_SetsToCpu_WhenOpenVinoAvailable()
+    {
+        // Arrange
+        var options = Options.Create(new OnnxModelOptions
+        {
+            PreferNpu = true,
+            ExecutionProvider = ExecutionProviderMode.OpenVINO,
+            OpenVinoDevice = OpenVinoDeviceType.NPU
+        });
+        var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
+
+        // 尝试启用 OpenVINO EP
+        var epResult = accelerator.ConfigureSessionOptions(new SessionOptions());
+        if (!epResult.IsSuccess)
+        {
+            _output.WriteLine("跳过：当前环境 OpenVINO EP 不可用，无法测试从 OpenVINO 回退 CPU 的状态切换");
+            return;
+        }
+
+        // Assert 初始状态：OpenVINO 已启用
+        accelerator.ActiveExecutionProvider.Should().Be("OpenVINO(NPU)");
+
+        // Act：调用 MarkCpuFallbackActive 模拟推理失败后的回退
+        accelerator.MarkCpuFallbackActive();
+
+        // Assert：EP 应切换为 CPU
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+
+        // 幂等：再次调用不应抛异常，EP 保持 CPU
+        accelerator.MarkCpuFallbackActive();
+        accelerator.ActiveExecutionProvider.Should().Be("CPU");
+
+        _output.WriteLine("OpenVINO(NPU) → CPU 回退标记验证通过");
+    }
 }

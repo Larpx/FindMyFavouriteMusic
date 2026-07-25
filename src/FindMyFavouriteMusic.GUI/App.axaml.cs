@@ -37,6 +37,10 @@ public partial class App : Application
     /// <summary>框架初始化完成时构建 Host 并显示主窗口</summary>
     public override void OnFrameworkInitializationCompleted()
     {
+        // 必须在任何 ONNX Runtime API 调用之前，根据配置复制对应 EP 的 native 库到输出根目录
+        // DirectML 与 OpenVINO 的 native 库（onnxruntime.dll）物理互斥，运行时切换由 EpNativeLoader 完成
+        InitializeEpNativeLib();
+
         _host = CreateHost();
 
         // 必须显式启动 Host，否则注册为 IHostedService 的服务（如 DatabaseInitializer）不会执行，
@@ -116,6 +120,45 @@ public partial class App : Application
             // 任何异常都不应阻断应用启动，用户仍可手动加载
             var logger = serviceProvider.GetService<ILogger<App>>();
             logger?.LogError(ex, "自动加载深度模型时发生异常");
+        }
+    }
+
+    /// <summary>
+    /// 在任何 ONNX Runtime API 调用之前，根据配置复制对应 EP 的 native 库到输出根目录。
+    /// </summary>
+    /// <remarks>
+    /// <para>DirectML 与 OpenVINO EP 的 native 库（onnxruntime.dll）物理互斥，
+    /// 启动时由 <see cref="EpNativeLoader"/> 根据配置把对应子目录（ep-dml / ep-openvino）的
+    /// native 库复制到输出根目录。</para>
+    /// <para>必须在进程启动早期、任何 ORT P/Invoke 之前调用，否则已加载的 onnxruntime.dll 无法替换。</para>
+    /// <para>读取配置与 <see cref="CreateHost"/> 相同的优先级：环境变量 > usersettings.json > appsettings.json。</para>
+    /// </remarks>
+    private static void InitializeEpNativeLib()
+    {
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+                .AddJsonFile("usersettings.json", optional: true, reloadOnChange: false)
+                .AddEnvironmentVariables("FINDMYFAVOURITEMUSIC_")
+                .Build();
+
+            var onnxConfig = new OnnxModelOptions();
+            config.GetSection(OnnxModelOptions.SectionName).Bind(onnxConfig);
+
+            // 与 HardwareAccelerator 的决策逻辑保持一致：PreferNpu=false 强制 CPU
+            var effectiveEp = !onnxConfig.PreferNpu
+                ? ExecutionProviderMode.CPU
+                : onnxConfig.ExecutionProvider;
+
+            EpNativeLoader.Initialize(AppContext.BaseDirectory, effectiveEp);
+        }
+        catch (Exception ex)
+        {
+            // EP native 库初始化失败不阻断启动，后续 ORT 加载可能失败由调用方处理
+            // 用 Console 输出而非 ILogger，因为此时 DI 容器尚未构建
+            Console.Error.WriteLine($"[EpNativeLoader] 初始化失败: {ex.Message}");
         }
     }
 

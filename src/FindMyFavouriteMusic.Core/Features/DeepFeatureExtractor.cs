@@ -242,7 +242,9 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
     /// <remarks>避免在 CPU EP 下重复回退，或已回退后再次触发重建。</remarks>
     private bool CanFallbackToCpu()
     {
-        return _accelerator.ActiveExecutionProvider == "DirectML" && !_hasAttemptedCpuFallback;
+        // 当前 EP 非 CPU（DirectML / OpenVINO 等）且尚未尝试过 CPU 回退时才允许回退
+        // 避免在 CPU EP 下重复回退，或已回退后再次触发重建
+        return _accelerator.ActiveExecutionProvider != "CPU" && !_hasAttemptedCpuFallback;
     }
 
     /// <summary>

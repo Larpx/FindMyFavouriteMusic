@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    CopyEpNativeLibs：把 DirectML 与 OpenVINO EP 的 native 库分别复制到输出目录的 ep-dml/ 与 ep-openvino/ 子目录。
+    仅在项目引用了对应 native 包（GeneratePathProperty=true 生成 $(Pkg...) 变量）时执行。
+    运行时由 EpNativeLoader 根据配置把对应子目录的 dll 复制到输出根目录后再加载 ORT。
+  -->
+  <Target Name="CopyEpNativeLibs" AfterTargets="AfterBuild"
+          Condition="'$(PkgMicrosoft_ML_OnnxRuntime_DirectML)' != '' or '$(PkgIntel_ML_OnnxRuntime_OpenVino)' != ''">
+    <PropertyGroup>
+      <DmlNativeDir>$(PkgMicrosoft_ML_OnnxRuntime_DirectML)\runtimes\win-x64\native</DmlNativeDir>
+      <OpenVinoNativeDir>$(PkgIntel_ML_OnnxRuntime_OpenVino)\runtimes\win-x64\native</OpenVinoNativeDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <DmlNativeLibs Include="$(DmlNativeDir)\**\*" />
+      <OpenVinoNativeLibs Include="$(OpenVinoNativeDir)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DmlNativeLibs)" DestinationFolder="$(OutDir)ep-dml\%(RecursiveDir)" Condition="Exists('$(DmlNativeDir)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(OpenVinoNativeLibs)" DestinationFolder="$(OutDir)ep-openvino\%(RecursiveDir)" Condition="Exists('$(OpenVinoNativeDir)')" SkipUnchangedFiles="true" />
+    <Message Text="已复制 DirectML native 库到 $(OutDir)ep-dml\ 与 OpenVINO native 库到 $(OutDir)ep-openvino\" Importance="high" />
+  </Target>
+</Project>

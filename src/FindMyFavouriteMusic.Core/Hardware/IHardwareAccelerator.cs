@@ -20,7 +20,7 @@ public interface IHardwareAccelerator
     string? NpuDeviceName { get; }
 
     /// <summary>
-    /// 当前实际生效的 Execution Provider 名称（如 "CPU"、"DirectML"）。
+    /// 当前实际生效的 Execution Provider 名称（如 "CPU"、"DirectML"、"OpenVINO(NPU)"）。
     /// </summary>
     /// <remarks>该值在每次 <see cref="ConfigureSessionOptions"/> 调用后更新，反映最近一次加载模型所用的 EP。</remarks>
     string ActiveExecutionProvider { get; }
@@ -29,9 +29,10 @@ public interface IHardwareAccelerator
     /// 根据检测结果与配置策略，为 ONNX Runtime 会话配置 Execution Provider。
     /// </summary>
     /// <param name="options">待配置的会话选项对象，方法内部会向其追加 EP。</param>
-    /// <returns>成功表示已追加 DirectML EP（调用方应使用该 options 创建会话）；失败表示应回退到 CPU EP（使用默认 options 或不附加 EP）。</returns>
+    /// <returns>成功表示已追加目标 EP（DirectML / OpenVINO，调用方应使用该 options 创建会话）；失败表示应回退到 CPU EP（使用默认 options 或不附加 EP）。</returns>
     /// <remarks>
-    /// <para>调用方无需关心是 NPU 还是 GPU，本方法仅决定是否启用 DirectML EP。</para>
+    /// <para>具体 EP 类型由 <see cref="Configuration.OnnxModelOptions.ExecutionProvider"/> 配置决定，
+    /// 调用方无需关心是 DirectML 还是 OpenVINO。</para>
     /// <para>方法内部捕获 EP 注册异常并返回 Failure，确保调用方可以无异常地回退到 CPU。</para>
     /// </remarks>
     Result ConfigureSessionOptions(SessionOptions options);

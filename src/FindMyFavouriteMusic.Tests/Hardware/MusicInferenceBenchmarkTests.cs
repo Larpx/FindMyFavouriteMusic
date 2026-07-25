@@ -15,17 +15,26 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Tests.Hardware;
 
 /// <summary>
 /// 音乐推理性能对比测试：使用真实 flac 音乐文件，
-/// 对 VGGish 与 MERT 两个模型分别测量 NPU(DirectML) 与 CPU 模式下的加载耗时和推理耗时。
+/// 对 VGGish 与 MERT 两个模型分别测量不同 Execution Provider 下的加载耗时和推理耗时。
 /// </summary>
 /// <remarks>
-/// <para><b>测试目标：</b>回答"使用 NPU 时，耗时是否缩短"。</para>
+/// <para><b>测试目标：</b>回答"DirectML / OpenVINO / CPU 三种 EP 中，哪种最快"。</para>
 /// <para><b>测试输入：</b>仓库根目录 <c>Models/ナナツカゼ,PIKASONIC,なこたんまる - 再生.flac</c>。</para>
-/// <para><b>测试方法：</b></para>
-/// <para>1. 一次性解码 flac 得到 PCM 样本（不计入模型推理对比）；</para>
-/// <para>2. 对每个模型 × 每个 EP 模式（PreferNpu=true / false），分别测量"加载耗时"与"推理耗时"；</para>
-/// <para>3. 输出对比表，标注最终生效 EP 与是否触发 CPU 回退。</para>
+/// <para><b>EP 选择机制：</b>由 <c>EpNativeLoaderInitializer</c>（ModuleInitializer）读取环境变量
+/// <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c> 决定测试启动时复制哪种 EP 的 native 库到根目录。
+/// 由于 native 库加载后无法卸载，单次 <c>dotnet test</c> 运行只能测试一种 EP。</para>
+/// <para><b>对比方式：</b></para>
+/// <para>- <see cref="Benchmark_MusicInference_AcceleratorVsCpu"/>：当前 EP（DirectML/OpenVINO）vs CPU，单次运行得到对比表；</para>
+/// <para>- <see cref="Benchmark_MusicInference_CurrentEp_Only"/>：仅运行当前 EP，输出耗时，便于用户运行 3 次对比三种 EP。</para>
+/// <para><b>使用示例（PowerShell）：</b></para>
+/// <para>1. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "CPU"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
+/// <para>2. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "DirectML"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
+/// <para>3. <c>$env:FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider = "OpenVINO"; dotnet test --filter Benchmark_MusicInference_CurrentEp_Only</c></para>
+/// <para><b>OpenVINO 设备选择：</b>OpenVINO EP 支持 NPU/GPU/AUTO 三种目标设备，
+/// 通过 <c>FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice</c> 环境变量切换（默认 NPU）。</para>
 /// <para><b>已知行为：</b>MERT 含动态形状 Reshape 算子，DirectML EP 推理会失败并触发 CPU 回退，
-/// 因此 MERT 在 NPU 模式下的耗时包含"DirectML 失败 + 重建 CPU 会话 + CPU 推理"，预期比直接 CPU 模式慢。</para>
+/// 因此 MERT 在 DirectML 模式下的耗时包含"DirectML 失败 + 重建 CPU 会话 + CPU 推理"，预期比直接 CPU 模式慢。
+/// OpenVINO EP 对动态形状支持更好，MERT 在 OpenVINO 下应能直接推理成功。</para>
 /// </remarks>
 public class MusicInferenceBenchmarkTests
 {
@@ -40,10 +49,16 @@ public class MusicInferenceBenchmarkTests
     }
 
     /// <summary>
-    /// 对指定 flac 音乐文件，测量 VGGish 与 MERT 在 NPU/CPU 模式下的加载与推理耗时。
+    /// 对指定 flac 音乐文件，测量 VGGish 与 MERT 在"当前配置的加速 EP（DirectML/OpenVINO）"与"CPU"模式下的加载与推理耗时。
     /// </summary>
+    /// <remarks>
+    /// <para>当前 EP 由环境变量 <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c> 决定
+    /// （由 ModuleInitializer 在测试启动时复制对应 native 库）。</para>
+    /// <para>未设置环境变量时默认 DirectML（与生产默认值一致）。</para>
+    /// <para>测试输出对比表，标注当前 EP 与是否触发 CPU 回退。</para>
+    /// </remarks>
     [Fact]
-    public async Task Benchmark_MusicInference_NpuVsCpu()
+    public async Task Benchmark_MusicInference_AcceleratorVsCpu()
     {
         // 1. 定位音频文件
         var audioPath = TryResolvePath("Models", AudioFileName);
@@ -73,6 +88,10 @@ public class MusicInferenceBenchmarkTests
         var samples = decodeResult.Value;
         var info = infoResult.Value!;
 
+        // 3. 读取当前生效的 EP 配置（与 EpNativeLoaderInitializer 保持一致）
+        var (acceleratorEp, openVinoDevice) = ResolveCurrentEpConfig();
+        var acceleratorEpLabel = FormatEpLabel(acceleratorEp, openVinoDevice);
+
         _output.WriteLine("===== 音频文件信息 =====");
         _output.WriteLine($"  文件: {AudioFileName}");
         _output.WriteLine($"  时长: {info.Duration.TotalSeconds:F1} 秒");
@@ -80,20 +99,21 @@ public class MusicInferenceBenchmarkTests
         _output.WriteLine($"  声道: {info.Channels}");
         _output.WriteLine($"  解码耗时: {decodeSw.ElapsedMilliseconds} ms");
         _output.WriteLine($"  PCM 样本数（重采样至 {TargetSampleRate}Hz 单声道后）: {samples.Length}");
+        _output.WriteLine($"  当前待测加速 EP: {acceleratorEpLabel}");
         _output.WriteLine(string.Empty);
 
-        // 3. VGGish 对比
-        var vggishLoadNpu = 0L; var vggishInferNpu = 0L; var vggishEpNpu = "";
+        // 4. VGGish 对比：当前加速 EP vs CPU
+        var vggishLoadAcc = 0L; var vggishInferAcc = 0L; var vggishEpAcc = "";
         var vggishLoadCpu = 0L; var vggishInferCpu = 0L; var vggishEpCpu = "CPU";
 
         var vggishPath = TryResolvePath("Models", "VGGish.onnx");
         if (vggishPath != null)
         {
-            (vggishLoadNpu, vggishInferNpu, vggishEpNpu) = await RunOnce<DeepFeatureExtractor>(
-                "VGGish", vggishPath, samples, preferNpu: true,
+            (vggishLoadAcc, vggishInferAcc, vggishEpAcc) = await RunOnce<DeepFeatureExtractor>(
+                "VGGish", vggishPath, samples, acceleratorEp, openVinoDevice,
                 (opt, acc, log) => new DeepFeatureExtractor(opt, acc, log), DeepModelType.VGGish);
             (vggishLoadCpu, vggishInferCpu, vggishEpCpu) = await RunOnce<DeepFeatureExtractor>(
-                "VGGish", vggishPath, samples, preferNpu: false,
+                "VGGish", vggishPath, samples, ExecutionProviderMode.CPU, openVinoDevice,
                 (opt, acc, log) => new DeepFeatureExtractor(opt, acc, log), DeepModelType.VGGish);
         }
         else
@@ -101,18 +121,18 @@ public class MusicInferenceBenchmarkTests
             _output.WriteLine("跳过 VGGish：未找到 Models/VGGish.onnx");
         }
 
-        // 4. MERT 对比
-        var mertLoadNpu = 0L; var mertInferNpu = 0L; var mertEpNpu = "";
+        // 5. MERT 对比
+        var mertLoadAcc = 0L; var mertInferAcc = 0L; var mertEpAcc = "";
         var mertLoadCpu = 0L; var mertInferCpu = 0L; var mertEpCpu = "CPU";
 
         var mertPath = TryResolvePath("Models", "MERT-v1-95M.onnx");
         if (mertPath != null)
         {
-            (mertLoadNpu, mertInferNpu, mertEpNpu) = await RunOnce<MertFeatureExtractor>(
-                "MERT", mertPath, samples, preferNpu: true,
+            (mertLoadAcc, mertInferAcc, mertEpAcc) = await RunOnce<MertFeatureExtractor>(
+                "MERT", mertPath, samples, acceleratorEp, openVinoDevice,
                 (opt, acc, log) => new MertFeatureExtractor(opt, acc, log), DeepModelType.MERT);
             (mertLoadCpu, mertInferCpu, mertEpCpu) = await RunOnce<MertFeatureExtractor>(
-                "MERT", mertPath, samples, preferNpu: false,
+                "MERT", mertPath, samples, ExecutionProviderMode.CPU, openVinoDevice,
                 (opt, acc, log) => new MertFeatureExtractor(opt, acc, log), DeepModelType.MERT);
         }
         else
@@ -120,74 +140,24 @@ public class MusicInferenceBenchmarkTests
             _output.WriteLine("跳过 MERT：未找到 Models/MERT-v1-95M.onnx");
         }
 
-        // 5. 汇总对比表
+        // 6. 汇总对比表
         _output.WriteLine(string.Empty);
         _output.WriteLine("===== 性能对比汇总 =====");
-        _output.WriteLine($"{"模型",-8} {"模式",-18} {"加载(ms)",-10} {"推理(ms)",-12} {"最终EP",-10}");
-        _output.WriteLine(new string('-', 60));
+        _output.WriteLine($"{"模型",-8} {"模式",-20} {"加载(ms)",-10} {"推理(ms)",-12} {"最终EP",-16}");
+        _output.WriteLine(new string('-', 70));
 
         if (vggishPath != null)
         {
-            _output.WriteLine($"{"VGGish",-8} {"NPU(DirectML)",-18} {vggishLoadNpu,-10} {vggishInferNpu,-12} {vggishEpNpu,-10}");
-            _output.WriteLine($"{"VGGish",-8} {"CPU",-18} {vggishLoadCpu,-10} {vggishInferCpu,-12} {vggishEpCpu,-10}");
-            if (vggishInferCpu > 0 && vggishInferNpu > 0 && vggishEpNpu == "DirectML")
-            {
-                var speedup = (double)vggishInferCpu / vggishInferNpu;
-                _output.WriteLine($"  -> VGGish NPU 加速比: {speedup:F2}x （{vggishInferCpu}ms / {vggishInferNpu}ms）");
-            }
-            else if (vggishEpNpu == "CPU")
-            {
-                _output.WriteLine($"  -> VGGish NPU 模式实际回退到 CPU（DirectML 加载失败或不可用）");
-            }
+            _output.WriteLine($"{"VGGish",-8} {acceleratorEpLabel,-20} {vggishLoadAcc,-10} {vggishInferAcc,-12} {vggishEpAcc,-16}");
+            _output.WriteLine($"{"VGGish",-8} {"CPU",-20} {vggishLoadCpu,-10} {vggishInferCpu,-12} {vggishEpCpu,-16}");
+            PrintSpeedupConclusion("VGGish", acceleratorEpLabel, vggishEpAcc, vggishInferAcc, vggishInferCpu);
         }
 
         if (mertPath != null)
         {
-            _output.WriteLine($"{"MERT",-8} {"NPU(DirectML)",-18} {mertLoadNpu,-10} {mertInferNpu,-12} {mertEpNpu,-10}");
-            _output.WriteLine($"{"MERT",-8} {"CPU",-18} {mertLoadCpu,-10} {mertInferCpu,-12} {mertEpCpu,-10}");
-            if (mertEpNpu == "CPU" && mertInferNpu > mertInferCpu && mertInferCpu > 0)
-            {
-                var overhead = mertInferNpu - mertInferCpu;
-                _output.WriteLine($"  -> MERT NPU 模式触发 CPU 回退，额外开销: +{overhead}ms （含 DirectML 失败 + 重建 CPU 会话）");
-            }
-            else if (mertEpNpu == "DirectML" && mertInferCpu > 0 && mertInferNpu > 0)
-            {
-                var speedup = (double)mertInferCpu / mertInferNpu;
-                _output.WriteLine($"  -> MERT NPU 加速比: {speedup:F2}x （{mertInferCpu}ms / {mertInferNpu}ms）");
-            }
-        }
-
-        // 6. 结论
-        _output.WriteLine(string.Empty);
-        _output.WriteLine("===== 结论 =====");
-        if (vggishPath != null)
-        {
-            if (vggishEpNpu == "DirectML")
-            {
-                var faster = vggishInferNpu < vggishInferCpu;
-                _output.WriteLine($"VGGish: NPU 模式推理 {vggishInferNpu}ms vs CPU {vggishInferCpu}ms，" +
-                                  $"{(faster ? "NPU 更快" : "NPU 未缩短（可能 DirectML 首次编译开销或算子仍走 CPU）")}");
-            }
-            else
-            {
-                _output.WriteLine($"VGGish: NPU 模式未生效（EP={vggishEpNpu}），无法对比加速效果");
-            }
-        }
-        if (mertPath != null)
-        {
-            if (mertEpNpu == "CPU")
-            {
-                var faster = mertInferNpu < mertInferCpu;
-                _output.WriteLine($"MERT: DirectML EP 不兼容（Reshape 动态形状算子失败），已自动回退 CPU；" +
-                                  $"NPU 模式 {mertInferNpu}ms vs 直接 CPU {mertInferCpu}ms，" +
-                                  $"{(faster ? "NPU 模式略快（属测量波动，两者最终均跑在 CPU 上）" : "NPU 模式更慢（含回退重建开销）")}");
-            }
-            else if (mertEpNpu == "DirectML")
-            {
-                var faster = mertInferNpu < mertInferCpu;
-                _output.WriteLine($"MERT: NPU 模式推理 {mertInferNpu}ms vs CPU {mertInferCpu}ms，" +
-                                  $"{(faster ? "NPU 更快" : "NPU 未缩短")}");
-            }
+            _output.WriteLine($"{"MERT",-8} {acceleratorEpLabel,-20} {mertLoadAcc,-10} {mertInferAcc,-12} {mertEpAcc,-16}");
+            _output.WriteLine($"{"MERT",-8} {"CPU",-20} {mertLoadCpu,-10} {mertInferCpu,-12} {mertEpCpu,-16}");
+            PrintSpeedupConclusion("MERT", acceleratorEpLabel, mertEpAcc, mertInferAcc, mertInferCpu);
         }
 
         // 简单断言保证测试有意义
@@ -195,23 +165,108 @@ public class MusicInferenceBenchmarkTests
     }
 
     /// <summary>
+    /// 仅运行当前生效的 EP（不与 CPU 对比），输出 VGGish 与 MERT 的加载与推理耗时。
+    /// </summary>
+    /// <remarks>
+    /// <para><b>使用场景：</b>用户依次运行 3 次（设置不同 <c>FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider</c>），
+    /// 每次输出当前 EP 的耗时，便于横向对比 CPU / DirectML / OpenVINO 三种 EP。</para>
+    /// <para><b>与 <see cref="Benchmark_MusicInference_AcceleratorVsCpu"/> 的差异：</b>
+    /// 后者在单次运行内对比"当前 EP vs CPU"，本测试只测当前 EP，节省时间，适合多次运行对比。</para>
+    /// </remarks>
+    [Fact]
+    public async Task Benchmark_MusicInference_CurrentEp_Only()
+    {
+        // 1. 定位音频文件
+        var audioPath = TryResolvePath("Models", AudioFileName);
+        if (SkipIfMissing(audioPath, AudioFileName)) return;
+
+        // 2. 解码音频
+        var featureOptions = Options.Create(new FeatureExtractionOptions());
+        var decoder = new AudioDecoder(featureOptions, NullLogger<AudioDecoder>.Instance);
+
+        var decodeResult = await decoder.DecodeAsync(audioPath!);
+        if (!decodeResult.IsSuccess || decodeResult.Value is null)
+        {
+            _output.WriteLine($"音频解码失败: {decodeResult.Error}");
+            return;
+        }
+
+        var samples = decodeResult.Value;
+
+        // 3. 读取当前 EP 配置
+        var (acceleratorEp, openVinoDevice) = ResolveCurrentEpConfig();
+        var epLabel = FormatEpLabel(acceleratorEp, openVinoDevice);
+
+        _output.WriteLine("===== 当前 EP 单独测试 =====");
+        _output.WriteLine($"  当前 EP: {epLabel}");
+        _output.WriteLine($"  音频样本数: {samples.Length} (采样率 {TargetSampleRate}Hz)");
+        _output.WriteLine(string.Empty);
+
+        // 4. VGGish
+        var vggishPath = TryResolvePath("Models", "VGGish.onnx");
+        if (vggishPath != null)
+        {
+            var (loadMs, inferMs, actualEp) = await RunOnce<DeepFeatureExtractor>(
+                "VGGish", vggishPath, samples, acceleratorEp, openVinoDevice,
+                (opt, acc, log) => new DeepFeatureExtractor(opt, acc, log), DeepModelType.VGGish);
+            _output.WriteLine($"  VGGish: 加载={loadMs}ms, 推理={inferMs}ms, 实际EP={actualEp}");
+        }
+        else
+        {
+            _output.WriteLine("  跳过 VGGish：未找到 Models/VGGish.onnx");
+        }
+
+        // 5. MERT
+        var mertPath = TryResolvePath("Models", "MERT-v1-95M.onnx");
+        if (mertPath != null)
+        {
+            var (loadMs, inferMs, actualEp) = await RunOnce<MertFeatureExtractor>(
+                "MERT", mertPath, samples, acceleratorEp, openVinoDevice,
+                (opt, acc, log) => new MertFeatureExtractor(opt, acc, log), DeepModelType.MERT);
+            _output.WriteLine($"  MERT: 加载={loadMs}ms, 推理={inferMs}ms, 实际EP={actualEp}");
+        }
+        else
+        {
+            _output.WriteLine("  跳过 MERT：未找到 Models/MERT-v1-95M.onnx");
+        }
+
+        _output.WriteLine(string.Empty);
+        _output.WriteLine($"提示：分别设置 FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider=CPU/DirectML/OpenVINO 运行 3 次以对比三种 EP");
+
+        samples.Length.Should().BeGreaterThan(0);
+    }
+
+    /// <summary>
     /// 在指定 EP 模式下运行一次"加载 + 推理"，返回 (加载耗时ms, 推理耗时ms, 最终EP)。
     /// </summary>
+    /// <typeparam name="T">提取器具体类型，仅用于日志泛型参数</typeparam>
+    /// <param name="modelLabel">模型标签，用于输出</param>
+    /// <param name="modelPath">模型文件路径</param>
+    /// <param name="samples">PCM 采样数据</param>
+    /// <param name="ep">本次运行的 EP 模式（CPU / DirectML / OpenVINO）</param>
+    /// <param name="openVinoDevice">OpenVINO 目标设备（仅 EP=OpenVINO 时生效）</param>
+    /// <param name="factory">提取器工厂方法</param>
+    /// <param name="modelType">深度模型类型（VGGish / MERT）</param>
+    /// <returns>(加载耗时ms, 推理耗时ms, 最终实际生效的 EP 名称)</returns>
     private async Task<(long loadMs, long inferMs, string ep)> RunOnce<T>(
         string modelLabel,
         string modelPath,
         float[] samples,
-        bool preferNpu,
+        ExecutionProviderMode ep,
+        OpenVinoDeviceType openVinoDevice,
         Func<IOptions<OnnxModelOptions>, HardwareAccelerator, ILogger<T>, IDeepFeatureExtractor> factory,
         DeepModelType modelType) where T : class
     {
-        var modeLabel = preferNpu ? "NPU(DirectML)" : "CPU";
+        var modeLabel = FormatEpLabel(ep, openVinoDevice);
         _output.WriteLine($"--- {modelLabel} [{modeLabel}] ---");
 
+        // OnnxModelOptions 的决策逻辑：PreferNpu=false 强制 CPU，PreferNpu=true 时按 ExecutionProvider 字段选择
         var options = Options.Create(new OnnxModelOptions
         {
             EnableDeepFeatures = false,
-            PreferNpu = preferNpu
+            PreferNpu = ep != ExecutionProviderMode.CPU,
+            ExecutionProvider = ep,
+            OpenVinoDevice = openVinoDevice
         });
         var accelerator = new HardwareAccelerator(options, NullLogger<HardwareAccelerator>.Instance);
         var extractor = factory(options, accelerator, NullLogger<T>.Instance);
@@ -262,6 +317,87 @@ public class MusicInferenceBenchmarkTests
 
         _output.WriteLine(string.Empty);
         return (loadSw.ElapsedMilliseconds, inferSw.ElapsedMilliseconds, epAfter);
+    }
+
+    /// <summary>
+    /// 读取环境变量解析当前测试的 EP 配置，与 <c>EpNativeLoaderInitializer</c> 决策逻辑保持一致。
+    /// </summary>
+    /// <returns>(EP 模式, OpenVINO 目标设备)</returns>
+    /// <remarks>
+    /// 未设置环境变量时返回生产默认值（DirectML + NPU）。
+    /// </remarks>
+    private static (ExecutionProviderMode ep, OpenVinoDeviceType device) ResolveCurrentEpConfig()
+    {
+        var preferNpuRaw = Environment.GetEnvironmentVariable("FINDMYFAVOURITEMUSIC_OnnxModel__PreferNpu");
+        if (bool.TryParse(preferNpuRaw, out var preferNpu) && !preferNpu)
+        {
+            return (ExecutionProviderMode.CPU, OpenVinoDeviceType.NPU);
+        }
+
+        var epRaw = Environment.GetEnvironmentVariable("FINDMYFAVOURITEMUSIC_OnnxModel__ExecutionProvider");
+        var ep = epRaw?.Trim().ToLowerInvariant() switch
+        {
+            "cpu" => ExecutionProviderMode.CPU,
+            "directml" or "dml" => ExecutionProviderMode.DirectML,
+            "openvino" or "ov" => ExecutionProviderMode.OpenVINO,
+            _ => ExecutionProviderMode.DirectML // 生产默认值
+        };
+
+        var deviceRaw = Environment.GetEnvironmentVariable("FINDMYFAVOURITEMUSIC_OnnxModel__OpenVinoDevice");
+        var device = deviceRaw?.Trim().ToLowerInvariant() switch
+        {
+            "npu" => OpenVinoDeviceType.NPU,
+            "gpu" => OpenVinoDeviceType.GPU,
+            "auto" => OpenVinoDeviceType.AUTO,
+            _ => OpenVinoDeviceType.NPU // 生产默认值
+        };
+
+        return (ep, device);
+    }
+
+    /// <summary>
+    /// 格式化 EP 标签用于输出，OpenVINO 模式附带目标设备。
+    /// </summary>
+    /// <param name="ep">EP 模式</param>
+    /// <param name="device">OpenVINO 目标设备（仅 EP=OpenVINO 时使用）</param>
+    /// <returns>形如 "DirectML"、"OpenVINO(NPU)"、"CPU" 的标签字符串</returns>
+    private static string FormatEpLabel(ExecutionProviderMode ep, OpenVinoDeviceType device)
+    {
+        return ep switch
+        {
+            ExecutionProviderMode.DirectML => "DirectML",
+            ExecutionProviderMode.OpenVINO => $"OpenVINO({device})",
+            _ => "CPU"
+        };
+    }
+
+    /// <summary>
+    /// 输出加速比结论，区分"加速成功"、"触发 CPU 回退"、"加载失败"三种情况。
+    /// </summary>
+    /// <param name="modelName">模型名（VGGish / MERT）</param>
+    /// <param name="expectedEpLabel">期望的加速 EP 标签</param>
+    /// <param name="actualEp">实际生效的 EP（推理后）</param>
+    /// <param name="inferMs">加速模式推理耗时</param>
+    /// <param name="cpuInferMs">CPU 模式推理耗时</param>
+    private void PrintSpeedupConclusion(
+        string modelName, string expectedEpLabel, string actualEp, long inferMs, long cpuInferMs)
+    {
+        if (inferMs <= 0)
+        {
+            _output.WriteLine($"  -> {modelName}: 加速 EP 模式加载/推理失败，无加速比数据");
+            return;
+        }
+
+        if (actualEp == "CPU")
+        {
+            _output.WriteLine($"  -> {modelName}: 加速 EP 触发 CPU 回退（推理最终走 CPU），加速模式 {inferMs}ms vs 直接 CPU {cpuInferMs}ms，" +
+                              $"{(inferMs > cpuInferMs ? $"慢 {inferMs - cpuInferMs}ms（含回退重建开销）" : "略快（属测量波动）")}");
+        }
+        else if (cpuInferMs > 0)
+        {
+            var speedup = (double)cpuInferMs / inferMs;
+            _output.WriteLine($"  -> {modelName}: {expectedEpLabel} 加速比 {speedup:F2}x （{expectedEpLabel} {inferMs}ms vs CPU {cpuInferMs}ms）");
+        }
     }
 
     /// <summary>
