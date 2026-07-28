@@ -227,6 +227,59 @@ public class SongRepository : ISongRepository
     }
 
     /// <inheritdoc/>
+    public async Task<Result> UpdateMetadataAsync(Song song)
+    {
+        try
+        {
+            await using var connection = new SqliteConnection(_options.ConnectionString);
+            await connection.OpenAsync();
+
+            const string sql = """
+                UPDATE Songs SET
+                    Title = @Title,
+                    Artist = @Artist,
+                    Album = @Album,
+                    AlbumArtist = @AlbumArtist,
+                    Genre = @Genre,
+                    Year = @Year,
+                    Track = @Track,
+                    Disc = @Disc,
+                    Comment = @Comment,
+                    Lyrics = @Lyrics,
+                    FileMd5 = @FileMd5,
+                    FileSize = @FileSize,
+                    DurationMs = COALESCE(@DurationMs, DurationMs)
+                WHERE Id = @Id
+                """;
+
+            await connection.ExecuteAsync(sql, new
+            {
+                song.Id,
+                song.Title,
+                song.Artist,
+                song.Album,
+                song.AlbumArtist,
+                song.Genre,
+                song.Year,
+                song.Track,
+                song.Disc,
+                song.Comment,
+                song.Lyrics,
+                song.FileMd5,
+                song.FileSize,
+                song.DurationMs
+            });
+
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新元数据失败: {SongId}", song.Id);
+            return Result.Failure(ex);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<Song>> GetByIdAsync(int id)
     {
         try

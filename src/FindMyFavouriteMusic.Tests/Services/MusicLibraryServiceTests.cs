@@ -3,6 +3,7 @@ using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services;
@@ -29,6 +30,7 @@ public class MusicLibraryServiceTests
     private readonly Mock<IVectorSerializer> _vectorSerializerMock;
     private readonly Mock<ISongRepository> _songRepositoryMock;
     private readonly Mock<IProfileService> _profileServiceMock;
+    private readonly Mock<IAudioTagService> _audioTagMock;
     private readonly MusicLibraryService _service;
 
     public MusicLibraryServiceTests()
@@ -39,6 +41,9 @@ public class MusicLibraryServiceTests
         _vectorSerializerMock = new Mock<IVectorSerializer>();
         _songRepositoryMock = new Mock<ISongRepository>();
         _profileServiceMock = new Mock<IProfileService>();
+        _audioTagMock = new Mock<IAudioTagService>();
+        _audioTagMock.Setup(t => t.ReadTags(It.IsAny<string>()))
+            .Returns(Result<SongDetailDto>.Failure("no tags"));
 
         var featureOptions = Options.Create(new FeatureExtractionOptions { TargetSampleRate = 16000 });
         var scanOptions = Options.Create(new ScanOptions
@@ -54,6 +59,7 @@ public class MusicLibraryServiceTests
             _vectorSerializerMock.Object,
             _songRepositoryMock.Object,
             _profileServiceMock.Object,
+            _audioTagMock.Object,
             new ModelOperationLock(),
             featureOptions,
             scanOptions,

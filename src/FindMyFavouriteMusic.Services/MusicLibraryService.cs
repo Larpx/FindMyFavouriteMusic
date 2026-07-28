@@ -28,6 +28,7 @@ public class MusicLibraryService : IMusicLibraryService
     private readonly IVectorSerializer _vectorSerializer;
     private readonly ISongRepository _songRepository;
     private readonly IProfileService _profileService;
+    private readonly IAudioTagService _audioTagService;
     private readonly IModelOperationLock _modelLock;
     private readonly FeatureExtractionOptions _featureOptions;
     private readonly ScanOptions _scanOptions;
@@ -45,6 +46,7 @@ public class MusicLibraryService : IMusicLibraryService
         IVectorSerializer vectorSerializer,
         ISongRepository songRepository,
         IProfileService profileService,
+        IAudioTagService audioTagService,
         IModelOperationLock modelLock,
         IOptions<FeatureExtractionOptions> featureOptions,
         IOptions<ScanOptions> scanOptions,
@@ -56,6 +58,7 @@ public class MusicLibraryService : IMusicLibraryService
         _vectorSerializer = vectorSerializer;
         _songRepository = songRepository;
         _profileService = profileService;
+        _audioTagService = audioTagService;
         _modelLock = modelLock;
         _featureOptions = featureOptions.Value;
         _scanOptions = scanOptions.Value;
@@ -336,6 +339,7 @@ public class MusicLibraryService : IMusicLibraryService
                 Format = format
             };
 
+            ApplyTagsToSong(song);
             song = await ExtractAndFillAsync(song, filePath, md5, fileInfo.Length, format, ct);
 
             var insertResult = await _songRepository.InsertAsync(song);
@@ -472,8 +476,6 @@ public class MusicLibraryService : IMusicLibraryService
     /// <summary>
     /// 将 Song 实体转换为 SongDto，隔离数据层与展示层。
     /// </summary>
-    /// <param name="song">歌曲实体</param>
-    /// <returns>展示用 DTO，仅包含必要字段（不暴露原始向量数据）</returns>
     private static SongDto MapToDto(Song song) => new()
     {
         Id = song.Id,
@@ -481,7 +483,133 @@ public class MusicLibraryService : IMusicLibraryService
         Title = song.Title,
         Artist = song.Artist,
         IsLiked = song.IsLiked,
-        // 仅告知 UI 是否已提取特征，用于显示"可预测"等状态
         HasFeatures = song.AcousticVectorBlob is not null
     };
+
+    /// <inheritdoc/>
+    public async Task<Result<SongDetailDto>> GetSongDetailAsync(int songId)
+    {
+        var songResult = await _songRepository.GetByIdAsync(songId);
+        if (!songResult.IsSuccess)
+        {
+            return Result<SongDetailDto>.Failure(songResult.Error!, songResult.Exception);
+        }
+
+        var song = songResult.Value!;
+        var tagResult = _audioTagService.ReadTags(song.FilePath);
+        if (!tagResult.IsSuccess || tagResult.Value is null)
+        {
+            return Result<SongDetailDto>.Success(new SongDetailDto
+            {
+                Id = song.Id,
+                FilePath = song.FilePath,
+                Title = song.Title,
+                Artist = song.Artist,
+                Album = song.Album,
+                AlbumArtist = song.AlbumArtist,
+                Genre = song.Genre,
+                Year = song.Year,
+                Track = song.Track,
+                Disc = song.Disc,
+                Comment = song.Comment,
+                Lyrics = song.Lyrics,
+                Format = song.Format,
+                FileSize = song.FileSize,
+                DurationMs = song.DurationMs,
+                FileMd5 = song.FileMd5,
+                IsLiked = song.IsLiked,
+                HasAcousticFeatures = song.AcousticVectorBlob is not null,
+                HasDeepFeatures = song.DeepVectorBlob is not null,
+                AcousticDim = song.AcousticDim,
+                DeepDim = song.DeepDim,
+                DeepModelType = song.DeepModelType,
+                IsReadOnlyFile = true
+            });
+        }
+
+        var detail = tagResult.Value;
+        detail.Id = song.Id;
+        detail.Format ??= song.Format;
+        detail.FileSize ??= song.FileSize;
+        detail.DurationMs ??= song.DurationMs;
+        detail.FileMd5 = song.FileMd5;
+        detail.IsLiked = song.IsLiked;
+        detail.HasAcousticFeatures = song.AcousticVectorBlob is not null;
+        detail.HasDeepFeatures = song.DeepVectorBlob is not null;
+        detail.AcousticDim = song.AcousticDim;
+        detail.DeepDim = song.DeepDim;
+        detail.DeepModelType = song.DeepModelType;
+        return Result<SongDetailDto>.Success(detail);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> SaveSongMetadataAsync(SongMetadataUpdateDto update)
+    {
+        var songResult = await _songRepository.GetByIdAsync(update.SongId);
+        if (!songResult.IsSuccess)
+        {
+            return songResult;
+        }
+
+        var song = songResult.Value!;
+        var writeResult = _audioTagService.WriteTags(song.FilePath, update);
+        if (!writeResult.IsSuccess)
+        {
+            return writeResult;
+        }
+
+        var md5 = await FileContentHasher.ComputeMd5HexAsync(song.FilePath);
+        var fileInfo = new FileInfo(song.FilePath);
+
+        song.Title = update.Title;
+        song.Artist = update.Artist;
+        song.Album = update.Album;
+        song.AlbumArtist = update.AlbumArtist;
+        song.Genre = update.Genre;
+        song.Year = update.Year;
+        song.Track = update.Track;
+        song.Disc = update.Disc;
+        song.Comment = update.Comment;
+        song.Lyrics = update.Lyrics;
+        song.FileMd5 = md5;
+        song.FileSize = fileInfo.Length;
+
+        return await _songRepository.UpdateMetadataAsync(song);
+    }
+
+    private void ApplyTagsToSong(Song song)
+    {
+        try
+        {
+            var tagResult = _audioTagService.ReadTags(song.FilePath);
+            if (tagResult is null || !tagResult.IsSuccess || tagResult.Value is null)
+            {
+                return;
+            }
+
+            var tag = tagResult.Value;
+            if (!string.IsNullOrWhiteSpace(tag.Title))
+            {
+                song.Title = tag.Title;
+            }
+
+            song.Artist = tag.Artist ?? song.Artist;
+            song.Album = tag.Album;
+            song.AlbumArtist = tag.AlbumArtist;
+            song.Genre = tag.Genre;
+            song.Year = tag.Year;
+            song.Track = tag.Track;
+            song.Disc = tag.Disc;
+            song.Comment = tag.Comment;
+            song.Lyrics = tag.Lyrics;
+            if (tag.DurationMs is > 0)
+            {
+                song.DurationMs = tag.DurationMs;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "读取标签跳过: {FilePath}", song.FilePath);
+        }
+    }
 }

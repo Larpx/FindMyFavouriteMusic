@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
@@ -145,6 +146,299 @@ public partial class MusicLibraryViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private string _statusMessage = "就绪";
+
+    /// <summary>列表当前选中项</summary>
+    [ObservableProperty]
+    private SongDto? _selectedSong;
+
+    /// <summary>是否显示详情面板</summary>
+    [ObservableProperty]
+    private bool _isDetailVisible;
+
+    /// <summary>详情是否有未保存修改</summary>
+    [ObservableProperty]
+    private bool _isDetailDirty;
+
+    /// <summary>详情是否只读文件</summary>
+    [ObservableProperty]
+    private bool _isDetailReadOnly;
+
+    [ObservableProperty] private string? _detailTitle;
+    [ObservableProperty] private string? _detailArtist;
+    [ObservableProperty] private string? _detailAlbum;
+    [ObservableProperty] private string? _detailAlbumArtist;
+    [ObservableProperty] private string? _detailGenre;
+    [ObservableProperty] private string? _detailYear;
+    [ObservableProperty] private string? _detailTrack;
+    [ObservableProperty] private string? _detailDisc;
+    [ObservableProperty] private string? _detailComment;
+    [ObservableProperty] private string? _detailLyrics;
+    [ObservableProperty] private string? _detailFilePath;
+    [ObservableProperty] private string? _detailFormat;
+    [ObservableProperty] private string? _detailFileSize;
+    [ObservableProperty] private string? _detailDuration;
+    [ObservableProperty] private string? _detailMd5;
+    [ObservableProperty] private string? _detailFeatureStatus;
+    [ObservableProperty] private Bitmap? _detailCover;
+
+    private int _detailSongId;
+    private byte[]? _pendingCoverBytes;
+    private string? _pendingCoverMime;
+    private bool _clearCover;
+    private bool _replaceCover;
+    private bool _suppressDirty;
+
+    /// <summary>图片选择回调（由 View 注入）</summary>
+    public Func<Task<(byte[]? Data, string? Mime)?>>? ImagePicker { get; set; }
+
+    partial void OnSelectedSongChanged(SongDto? value)
+    {
+        _ = OnSelectedSongChangedAsync(value);
+    }
+
+    private async Task OnSelectedSongChangedAsync(SongDto? value)
+    {
+        if (value is null)
+        {
+            if (IsDetailDirty)
+            {
+                var discard = await _dialogService.ShowConfirmAsync("未保存的修改", "切换歌曲将丢弃未保存的修改，是否继续？");
+                if (!discard)
+                {
+                    return;
+                }
+            }
+
+            ClearDetail();
+            return;
+        }
+
+        if (IsDetailDirty && value.Id != _detailSongId)
+        {
+            var discard = await _dialogService.ShowConfirmAsync("未保存的修改", "切换歌曲将丢弃未保存的修改，是否继续？");
+            if (!discard)
+            {
+                return;
+            }
+        }
+
+        await LoadDetailAsync(value.Id);
+    }
+
+    [RelayCommand]
+    private async Task ViewDetailAsync(SongDto? song)
+    {
+        if (song is null) return;
+        SelectedSong = song;
+        await LoadDetailAsync(song.Id);
+    }
+
+    private async Task LoadDetailAsync(int songId)
+    {
+        try
+        {
+            var result = await _libraryService.GetSongDetailAsync(songId);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                StatusMessage = $"加载详情失败: {result.Error}";
+                return;
+            }
+
+            ApplyDetail(result.Value);
+            IsDetailVisible = true;
+            StatusMessage = $"详情: {result.Value.Title ?? Path.GetFileName(result.Value.FilePath)}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载详情失败: {SongId}", songId);
+            StatusMessage = $"加载详情出错: {ex.Message}";
+        }
+    }
+
+    private void ApplyDetail(SongDetailDto d)
+    {
+        _suppressDirty = true;
+        _detailSongId = d.Id;
+        DetailTitle = d.Title;
+        DetailArtist = d.Artist;
+        DetailAlbum = d.Album;
+        DetailAlbumArtist = d.AlbumArtist;
+        DetailGenre = d.Genre;
+        DetailYear = d.Year?.ToString();
+        DetailTrack = d.Track;
+        DetailDisc = d.Disc;
+        DetailComment = d.Comment;
+        DetailLyrics = d.Lyrics;
+        DetailFilePath = d.FilePath;
+        DetailFormat = d.Format;
+        DetailFileSize = d.FileSize is long s ? $"{s / 1024.0:F1} KB" : null;
+        DetailDuration = d.DurationMs is int ms
+            ? TimeSpan.FromMilliseconds(ms).ToString(@"mm\:ss")
+            : null;
+        DetailMd5 = d.FileMd5;
+        DetailFeatureStatus =
+            $"声学={(d.HasAcousticFeatures ? $"{d.AcousticDim}维" : "无")}；深度={(d.HasDeepFeatures ? $"{d.DeepModelType} {d.DeepDim}维" : "无")}";
+        IsDetailReadOnly = d.IsReadOnlyFile;
+        _pendingCoverBytes = null;
+        _pendingCoverMime = null;
+        _clearCover = false;
+        _replaceCover = false;
+        SetCoverBitmap(d.CoverImageData);
+        IsDetailDirty = false;
+        _suppressDirty = false;
+    }
+
+    private void ClearDetail()
+    {
+        _suppressDirty = true;
+        IsDetailVisible = false;
+        IsDetailDirty = false;
+        _detailSongId = 0;
+        DetailCover?.Dispose();
+        DetailCover = null;
+        _suppressDirty = false;
+    }
+
+    private void SetCoverBitmap(byte[]? data)
+    {
+        DetailCover?.Dispose();
+        DetailCover = null;
+        if (data is not { Length: > 0 })
+        {
+            return;
+        }
+
+        try
+        {
+            using var ms = new MemoryStream(data);
+            DetailCover = new Bitmap(ms);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "封面解码失败");
+        }
+    }
+
+    private void MarkDirty()
+    {
+        if (!_suppressDirty)
+        {
+            IsDetailDirty = true;
+        }
+    }
+
+    partial void OnDetailTitleChanged(string? value) => MarkDirty();
+    partial void OnDetailArtistChanged(string? value) => MarkDirty();
+    partial void OnDetailAlbumChanged(string? value) => MarkDirty();
+    partial void OnDetailAlbumArtistChanged(string? value) => MarkDirty();
+    partial void OnDetailGenreChanged(string? value) => MarkDirty();
+    partial void OnDetailYearChanged(string? value) => MarkDirty();
+    partial void OnDetailTrackChanged(string? value) => MarkDirty();
+    partial void OnDetailDiscChanged(string? value) => MarkDirty();
+    partial void OnDetailCommentChanged(string? value) => MarkDirty();
+    partial void OnDetailLyricsChanged(string? value) => MarkDirty();
+
+    [RelayCommand]
+    private async Task ChangeCoverAsync()
+    {
+        if (ImagePicker is null || IsDetailReadOnly) return;
+        var picked = await ImagePicker();
+        if (picked is null) return;
+
+        _pendingCoverBytes = picked.Value.Data;
+        _pendingCoverMime = picked.Value.Mime;
+        _replaceCover = true;
+        _clearCover = false;
+        SetCoverBitmap(_pendingCoverBytes);
+        IsDetailDirty = true;
+    }
+
+    [RelayCommand]
+    private void ClearCover()
+    {
+        if (IsDetailReadOnly) return;
+        _clearCover = true;
+        _replaceCover = false;
+        _pendingCoverBytes = null;
+        SetCoverBitmap(null);
+        IsDetailDirty = true;
+    }
+
+    [RelayCommand]
+    private async Task DiscardDetailAsync()
+    {
+        if (_detailSongId <= 0) return;
+        await LoadDetailAsync(_detailSongId);
+    }
+
+    [RelayCommand]
+    private async Task SaveDetailAsync()
+    {
+        if (_detailSongId <= 0 || IsDetailReadOnly) return;
+
+        int? year = null;
+        if (!string.IsNullOrWhiteSpace(DetailYear))
+        {
+            if (!int.TryParse(DetailYear, out var y) || y is < 0 or > 9999)
+            {
+                await _dialogService.ShowErrorAsync("输入无效", "年份须为 0~9999 的整数");
+                return;
+            }
+
+            year = y;
+        }
+
+        var update = new SongMetadataUpdateDto
+        {
+            SongId = _detailSongId,
+            Title = DetailTitle,
+            Artist = DetailArtist,
+            Album = DetailAlbum,
+            AlbumArtist = DetailAlbumArtist,
+            Genre = DetailGenre,
+            Year = year,
+            Track = DetailTrack,
+            Disc = DetailDisc,
+            Comment = DetailComment,
+            Lyrics = DetailLyrics,
+            ClearCover = _clearCover,
+            ReplaceCover = _replaceCover,
+            CoverImageData = _pendingCoverBytes,
+            CoverMimeType = _pendingCoverMime
+        };
+
+        try
+        {
+            var result = await _libraryService.SaveSongMetadataAsync(update);
+            if (!result.IsSuccess)
+            {
+                StatusMessage = $"保存失败: {result.Error}";
+                await _dialogService.ShowErrorAsync("保存失败", result.Error ?? "未知错误");
+                return;
+            }
+
+            IsDetailDirty = false;
+            StatusMessage = "标签已写回原文件";
+
+            // 刷新列表中的 Title/Artist
+            var listItem = Songs.FirstOrDefault(s => s.Id == _detailSongId);
+            if (listItem is not null)
+            {
+                listItem.Title = DetailTitle;
+                listItem.Artist = DetailArtist;
+                var index = Songs.IndexOf(listItem);
+                if (index >= 0) Songs[index] = listItem;
+            }
+
+            await _dialogService.ShowSuccessAsync("保存成功", "元数据已直接写入原文件（封面未入库）");
+            await LoadDetailAsync(_detailSongId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存元数据失败");
+            await _dialogService.ShowErrorAsync("保存出错", ex.Message);
+        }
+    }
 
     /// <summary>
     /// 扫描目录命令（无参版本）：先弹出文件夹选择器，再触发实际扫描。

@@ -23,4 +23,7 @@ public interface IDialogService
     /// <param name="title">弹窗标题</param>
     /// <param name="message">弹窗消息内容</param>
     Task ShowErrorAsync(string title, string message);
+
+    /// <summary>显示确认对话框，用户选择「是」返回 true。</summary>
+    Task<bool> ShowConfirmAsync(string title, string message);
 }

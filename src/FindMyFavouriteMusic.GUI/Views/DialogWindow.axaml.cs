@@ -15,15 +15,8 @@ public partial class DialogWindow : Window
         InitializeComponent();
     }
 
-    /// <summary>
-    /// 初始化弹窗内容并绑定数据。
-    /// </summary>
-    /// <param name="kind">弹窗类型（Info/Success/Error）</param>
-    /// <param name="title">标题</param>
-    /// <param name="message">消息</param>
     public void Initialize(DialogKind kind, string title, string message)
     {
-        // 根据弹窗类型选择色调和图标符号
         IBrush accentBrush;
         string icon;
         switch (kind)
@@ -36,6 +29,10 @@ public partial class DialogWindow : Window
                 accentBrush = Brushes.Red;
                 icon = "✕";
                 break;
+            case DialogKind.Confirm:
+                accentBrush = new SolidColorBrush(Color.Parse("#f0a020"));
+                icon = "?";
+                break;
             default:
                 accentBrush = new SolidColorBrush(Color.Parse("#00d4ff"));
                 icon = "i";
@@ -46,25 +43,21 @@ public partial class DialogWindow : Window
         IconText = icon;
         Title = title;
         Message = message;
+        ShowCancelButton = kind == DialogKind.Confirm;
+        PrimaryButtonText = kind == DialogKind.Confirm ? "是" : "确定";
 
-        // 绑定关闭命令到窗口的 Close 方法
-        CloseCommand = new RelayCommand(() => Close());
+        CloseCommand = new RelayCommand(() => Close(kind == DialogKind.Confirm ? true : null));
+        CancelCommand = new RelayCommand(() => Close(false));
 
         DataContext = this;
     }
 
-    /// <summary>顶部色条与图标使用的强调色画刷</summary>
     public IBrush AccentBrush { get; private set; } = Brushes.Cyan;
-
-    /// <summary>状态图标文本（✓ / ✕ / i）</summary>
     public string IconText { get; private set; } = "i";
-
-    /// <summary>弹窗标题</summary>
     public new string Title { get; private set; } = string.Empty;
-
-    /// <summary>弹窗消息内容</summary>
     public string Message { get; private set; } = string.Empty;
-
-    /// <summary>关闭按钮命令</summary>
+    public bool ShowCancelButton { get; private set; }
+    public string PrimaryButtonText { get; private set; } = "确定";
     public IRelayCommand CloseCommand { get; private set; } = null!;
+    public IRelayCommand CancelCommand { get; private set; } = null!;
 }

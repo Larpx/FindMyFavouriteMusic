@@ -216,6 +216,7 @@ public partial class App : Application
 
                 // Services 层：业务编排
                 services.AddSingleton<ISongRepository, SongRepository>();
+                services.AddSingleton<IAudioTagService, AudioTagService>();
                 services.AddSingleton<IProfileService, ProfileService>();
                 services.AddSingleton<IPredictionService, PredictionService>();
                 services.AddSingleton<IMusicLibraryService, MusicLibraryService>();

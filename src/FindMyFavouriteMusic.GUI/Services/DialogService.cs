@@ -32,6 +32,25 @@ public class DialogService : IDialogService
         await ShowDialogAsync(DialogKind.Error, title, message);
     }
 
+    /// <inheritdoc/>
+    public async Task<bool> ShowConfirmAsync(string title, string message)
+    {
+        return await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            var dialog = new DialogWindow();
+            dialog.Initialize(DialogKind.Confirm, title, message);
+            var owner = GetMainWindow();
+            if (owner is not null)
+            {
+                var result = await dialog.ShowDialog<bool?>(owner);
+                return result == true;
+            }
+
+            dialog.Show();
+            return false;
+        });
+    }
+
     /// <summary>
     /// 核心弹窗逻辑：在 UI 线程创建并显示对话框窗口。
     /// </summary>

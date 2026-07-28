@@ -21,5 +21,8 @@ public interface ISongRepository
     /// <summary>仅更新文件指纹（元数据写回后 MD5 变化，保留向量）。</summary>
     Task<Result> UpdateFingerprintAsync(int id, string fileMd5, long fileSize);
 
+    /// <summary>更新元数据镜像字段（不含向量）。</summary>
+    Task<Result> UpdateMetadataAsync(Song song);
+
     Task<Result<Song>> GetByIdAsync(int id);
 }

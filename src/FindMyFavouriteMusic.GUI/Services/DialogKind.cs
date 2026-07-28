@@ -12,5 +12,8 @@ public enum DialogKind
     Success,
 
     /// <summary>错误反馈（红色）</summary>
-    Error
+    Error,
+
+    /// <summary>确认对话框（是/否）</summary>
+    Confirm
 }

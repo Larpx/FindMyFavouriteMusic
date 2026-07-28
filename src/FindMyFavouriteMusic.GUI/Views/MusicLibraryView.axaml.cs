@@ -25,6 +25,7 @@ public partial class MusicLibraryView : UserControl
         if (DataContext is MusicLibraryViewModel vm)
         {
             vm.FolderPicker = OpenFolderDialogAsync;
+            vm.ImagePicker = OpenImageDialogAsync;
         }
     }
 
@@ -41,6 +42,40 @@ public partial class MusicLibraryView : UserControl
         });
 
         return folders.FirstOrDefault()?.TryGetLocalPath();
+    }
+
+    /// <summary>选择封面图片</summary>
+    private async Task<(byte[]? Data, string? Mime)?> OpenImageDialogAsync()
+    {
+        var storage = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (storage is null) return null;
+
+        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择封面图片",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("图片")
+                {
+                    Patterns = ["*.jpg", "*.jpeg", "*.png"]
+                }
+            ]
+        });
+
+        var file = files.FirstOrDefault();
+        if (file is null) return null;
+
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+
+        var bytes = await File.ReadAllBytesAsync(path);
+        var mime = Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            _ => "image/jpeg"
+        };
+        return (bytes, mime);
     }
 
     /// <summary>文件夹拖拽进入：高亮提示</summary>
