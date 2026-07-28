@@ -5,6 +5,7 @@ using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Services;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -29,6 +30,7 @@ public partial class SettingsViewModel : ViewModelBase
         IDeepFeatureExtractor deepExtractor,
         IOptionsMonitor<OnnxModelOptions> onnxOptions,
         IOptionsMonitor<PredictionOptions> predictionOptions,
+        IOptionsMonitor<ScanOptions> scanOptions,
         IProfileService profileService,
         IUserSettingsService userSettingsService,
         ILogger<SettingsViewModel> logger,
@@ -48,6 +50,7 @@ public partial class SettingsViewModel : ViewModelBase
         var currentOptions = _predictionOptions.CurrentValue;
         _acousticWeight = currentOptions.AcousticWeight;
         _deepWeight = currentOptions.DeepWeight;
+        _acousticOnlyWeight = currentOptions.AcousticOnlyWeight;
 
         var onnxConfig = _onnxOptions.CurrentValue;
         _selectedModelType = onnxConfig.ModelType.ToString();
@@ -56,6 +59,8 @@ public partial class SettingsViewModel : ViewModelBase
         _enableDeepFeatures = onnxConfig.EnableDeepFeatures;
         _selectedExecutionProvider = onnxConfig.ExecutionProvider.ToString();
         _selectedOpenVinoDevice = onnxConfig.OpenVinoDevice.ToString();
+        _openVinoCacheDir = onnxConfig.OpenVinoCacheDir ?? string.Empty;
+        _maxConcurrentProcessing = scanOptions.CurrentValue.MaxConcurrentProcessing;
         _isModelLoaded = deepExtractor.IsModelLoaded;
         UpdateAcceleratorStatus();
     }
@@ -67,6 +72,18 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>深度特征相似度权重</summary>
     [ObservableProperty]
     private double _deepWeight;
+
+    /// <summary>仅声学模式下的权重（通常为 1.0）</summary>
+    [ObservableProperty]
+    private double _acousticOnlyWeight;
+
+    /// <summary>OpenVINO 编译缓存目录</summary>
+    [ObservableProperty]
+    private string _openVinoCacheDir = string.Empty;
+
+    /// <summary>扫描最大并发数</summary>
+    [ObservableProperty]
+    private int _maxConcurrentProcessing;
 
     /// <summary>当前选择的深度模型类型：VGGish 或 MERT</summary>
     [ObservableProperty]
@@ -275,12 +292,13 @@ public partial class SettingsViewModel : ViewModelBase
 
         try
         {
-            var result = await _userSettingsService.SavePredictionWeightsAsync(AcousticWeight, DeepWeight);
+            var result = await _userSettingsService.SavePredictionWeightsAsync(
+                AcousticWeight, DeepWeight, AcousticOnlyWeight);
             if (result.IsSuccess)
             {
-                StatusMessage = $"权重已保存（声学 {AcousticWeight}，深度 {DeepWeight}）";
+                StatusMessage = $"权重已保存（声学 {AcousticWeight}，深度 {DeepWeight}，仅声学 {AcousticOnlyWeight}）";
                 await _dialogService.ShowSuccessAsync("保存成功",
-                    $"声学权重: {AcousticWeight}\n深度权重: {DeepWeight}");
+                    $"声学权重: {AcousticWeight}\n深度权重: {DeepWeight}\n仅声学权重: {AcousticOnlyWeight}");
             }
             else
             {
@@ -304,7 +322,7 @@ public partial class SettingsViewModel : ViewModelBase
         {
             var result = await _userSettingsService.SaveOnnxModelSettingsAsync(
                 EnableDeepFeatures, SelectedModelType, VggishModelPath, MertModelPath,
-                SelectedExecutionProvider, SelectedOpenVinoDevice);
+                SelectedExecutionProvider, SelectedOpenVinoDevice, OpenVinoCacheDir);
             if (result.IsSuccess)
             {
                 StatusMessage = $"{SelectedModelType} 模型配置已保存（EP={SelectedExecutionProvider}，需重启应用生效）";
@@ -320,6 +338,33 @@ public partial class SettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "保存 ONNX 模型配置失败");
+            StatusMessage = $"保存出错: {ex.Message}";
+            await _dialogService.ShowErrorAsync("保存出错", ex.Message);
+        }
+    }
+
+    /// <summary>保存扫描并发配置到 usersettings.json</summary>
+    [RelayCommand]
+    private async Task SaveScanSettingsAsync()
+    {
+        try
+        {
+            var result = await _userSettingsService.SaveScanSettingsAsync(MaxConcurrentProcessing);
+            if (result.IsSuccess)
+            {
+                StatusMessage = $"扫描配置已保存（并发 {MaxConcurrentProcessing}，重启后完全生效）";
+                await _dialogService.ShowSuccessAsync("保存成功",
+                    $"最大并发处理数: {MaxConcurrentProcessing}\n建议重启应用后生效");
+            }
+            else
+            {
+                StatusMessage = $"保存失败: {result.Error}";
+                await _dialogService.ShowErrorAsync("保存失败", result.Error ?? "未知错误");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存扫描配置失败");
             StatusMessage = $"保存出错: {ex.Message}";
             await _dialogService.ShowErrorAsync("保存出错", ex.Message);
         }

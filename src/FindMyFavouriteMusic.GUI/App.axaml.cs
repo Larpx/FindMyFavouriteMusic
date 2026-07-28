@@ -137,10 +137,14 @@ public partial class App : Application
     {
         try
         {
+            var userSettingsPath = UserSettingsPaths.GetUserSettingsFilePath();
+            var legacySettingsPath = UserSettingsPaths.GetLegacySettingsFilePath();
+
             var config = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
-                .AddJsonFile("usersettings.json", optional: true, reloadOnChange: false)
+                .AddJsonFile(legacySettingsPath, optional: true, reloadOnChange: false)
+                .AddJsonFile(userSettingsPath, optional: true, reloadOnChange: false)
                 .AddEnvironmentVariables("FINDMYFAVOURITEMUSIC_")
                 .Build();
 
@@ -166,10 +170,14 @@ public partial class App : Application
         return Host.CreateDefaultBuilder()
             .ConfigureAppConfiguration((context, config) =>
             {
+                var userSettingsPath = UserSettingsPaths.GetUserSettingsFilePath();
+                var legacySettingsPath = UserSettingsPaths.GetLegacySettingsFilePath();
+
                 // 基础配置文件
                 config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-                // 用户运行时配置文件（覆盖 appsettings.json 同名键）
-                config.AddJsonFile("usersettings.json", optional: true, reloadOnChange: true);
+                // 旧版应用目录配置（兼容）→ AppData 用户配置（优先）
+                config.AddJsonFile(legacySettingsPath, optional: true, reloadOnChange: true);
+                config.AddJsonFile(userSettingsPath, optional: true, reloadOnChange: true);
                 // 环境变量覆盖（前缀 FINDMYFAVOURITEMUSIC_）
                 config.AddEnvironmentVariables("FINDMYFAVOURITEMUSIC_");
             })

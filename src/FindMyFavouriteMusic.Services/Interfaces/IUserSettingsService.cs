@@ -8,23 +8,25 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 /// </summary>
 public interface IUserSettingsService
 {
-    /// <summary>保存预测权重配置</summary>
-    /// <param name="acousticWeight">声学特征权重（0~1）</param>
-    /// <param name="deepWeight">深度特征权重（0~1）</param>
+    /// <summary>保存预测权重（声学/深度；AcousticOnly 默认 1.0）。</summary>
     Task<Result> SavePredictionWeightsAsync(double acousticWeight, double deepWeight);
 
-    /// <summary>保存 ONNX 模型配置</summary>
-    /// <param name="enableDeepFeatures">是否启用深度特征</param>
-    /// <param name="modelType">模型类型（VGGish 或 MERT）</param>
-    /// <param name="vggishModelPath">VGGish 模型文件路径，可为 null</param>
-    /// <param name="mertModelPath">MERT 模型文件路径，可为 null</param>
-    /// <param name="executionProvider">推理 EP 模式（CPU 或 OpenVINO），v2.0 起新增</param>
-    /// <param name="openVinoDevice">OpenVINO 目标设备（GPU/NPU/AUTO），仅 executionProvider=OpenVINO 时生效</param>
-    Task<Result> SaveOnnxModelSettingsAsync(bool enableDeepFeatures, string modelType, string? vggishModelPath, string? mertModelPath, string executionProvider, string openVinoDevice);
+    /// <summary>保存预测权重（含仅声学模式权重）。</summary>
+    Task<Result> SavePredictionWeightsAsync(double acousticWeight, double deepWeight, double acousticOnlyWeight);
 
-    /// <summary>
-    /// 保存上次扫描的音乐库目录路径，供下次启动时自动重新扫描。
-    /// </summary>
-    /// <param name="directoryPath">扫描目录路径，传入 null 或空字符串可清除记录</param>
+    /// <summary>保存 ONNX 模型配置（含 OpenVINO 缓存目录）。</summary>
+    Task<Result> SaveOnnxModelSettingsAsync(
+        bool enableDeepFeatures,
+        string modelType,
+        string? vggishModelPath,
+        string? mertModelPath,
+        string executionProvider,
+        string openVinoDevice,
+        string? openVinoCacheDir = null);
+
+    /// <summary>保存上次扫描目录。</summary>
     Task<Result> SaveLastScanDirectoryAsync(string? directoryPath);
+
+    /// <summary>保存扫描相关设置（并发数等）。</summary>
+    Task<Result> SaveScanSettingsAsync(int maxConcurrentProcessing, string? lastScanDirectory = null);
 }

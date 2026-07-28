@@ -56,6 +56,16 @@
                                    Foreground="{StaticResource BrushTextMuted}"
                                    Grid.Row="1" Grid.Column="2" VerticalAlignment="Center"
                                    Margin="4,0,0,0"/>
+
+                        <TextBlock Text="仅声学权重" Classes="label-text"
+                                   Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding AcousticOnlyWeight}" Classes="sci-input"
+                                 Grid.Row="2" Grid.Column="1"/>
+                        <TextBlock Text="无深度特征时使用，通常 1.0"
+                                   Classes="label-text" FontSize="{StaticResource TextXs}"
+                                   Foreground="{StaticResource BrushTextMuted}"
+                                   Grid.Row="2" Grid.Column="2" VerticalAlignment="Center"
+                                   Margin="4,0,0,0"/>
                     </Grid>
 
                     <StackPanel Spacing="2" Margin="0,4,0,0">
@@ -208,6 +218,13 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="OpenVINO 编译缓存目录" Classes="label-text"/>
+                        <TextBox Text="{Binding OpenVinoCacheDir}"
+                                 PlaceholderText="./openvino-cache"
+                                 Classes="sci-input"/>
+                    </StackPanel>
+
                     <!-- 拖拽提示 -->
                     <TextBlock Text="支持拖拽 .onnx 模型文件到本区域，自动识别模型类型并填充路径"
                                Foreground="{StaticResource BrushTextMuted}"
@@ -267,6 +284,26 @@
                                        FontSize="{StaticResource TextSm}" FontWeight="Medium"/>
                         </Border>
                     </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ======================================================== -->
+            <!-- 扫描                                                      -->
+            <!-- ======================================================== -->
+            <Border Classes="card">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="扫描" Classes="section-title"/>
+                    <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="12">
+                        <TextBlock Text="最大并发数" Classes="label-text" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding MaxConcurrentProcessing}" Classes="sci-input" Grid.Column="1"/>
+                        <TextBlock Text="1~32，重启后完全生效"
+                                   Classes="label-text" FontSize="{StaticResource FontXs}"
+                                   Foreground="{StaticResource BrushTextMuted}"
+                                   Grid.Column="2" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Button Content="保存扫描配置"
+                            Classes="outline-btn"
+                            Command="{Binding SaveScanSettingsCommand}"/>
                 </StackPanel>
             </Border>
 
