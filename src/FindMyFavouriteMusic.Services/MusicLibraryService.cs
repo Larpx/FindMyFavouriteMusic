@@ -1,4 +1,5 @@
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Dtos;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
@@ -26,6 +27,7 @@ public class MusicLibraryService : IMusicLibraryService
     private readonly IVectorSerializer _vectorSerializer;
     private readonly ISongRepository _songRepository;
     private readonly IProfileService _profileService;
+    private readonly IModelOperationLock _modelLock;
     private readonly FeatureExtractionOptions _featureOptions;
     private readonly ScanOptions _scanOptions;
     private readonly ILogger<MusicLibraryService> _logger;
@@ -35,15 +37,6 @@ public class MusicLibraryService : IMusicLibraryService
     /// <summary>
     /// 构造函数，通过 DI 注入所有依赖组件。
     /// </summary>
-    /// <param name="audioDecoder">音频解码器，将音频文件解码为采样数据</param>
-    /// <param name="acousticExtractor">声学特征提取器</param>
-    /// <param name="deepExtractor">深度特征提取器（依赖 ONNX 模型）</param>
-    /// <param name="vectorSerializer">向量序列化器，用于 float[] 与 byte[] 互转</param>
-    /// <param name="songRepository">歌曲仓储</param>
-    /// <param name="profileService">用户画像服务</param>
-    /// <param name="featureOptions">特征提取配置</param>
-    /// <param name="scanOptions">扫描配置（含并发数与支持扩展名）</param>
-    /// <param name="logger">日志记录器</param>
     public MusicLibraryService(
         IAudioDecoder audioDecoder,
         IAcousticFeatureExtractor acousticExtractor,
@@ -51,6 +44,7 @@ public class MusicLibraryService : IMusicLibraryService
         IVectorSerializer vectorSerializer,
         ISongRepository songRepository,
         IProfileService profileService,
+        IModelOperationLock modelLock,
         IOptions<FeatureExtractionOptions> featureOptions,
         IOptions<ScanOptions> scanOptions,
         ILogger<MusicLibraryService> logger)
@@ -61,6 +55,7 @@ public class MusicLibraryService : IMusicLibraryService
         _vectorSerializer = vectorSerializer;
         _songRepository = songRepository;
         _profileService = profileService;
+        _modelLock = modelLock;
         _featureOptions = featureOptions.Value;
         _scanOptions = scanOptions.Value;
         _logger = logger;
@@ -87,6 +82,9 @@ public class MusicLibraryService : IMusicLibraryService
         {
             return Result<IReadOnlyList<SongDto>>.Failure($"目录不存在: {directoryPath}");
         }
+
+        // 与模型加载互斥：整次扫描持锁，避免中途 Dispose Session
+        await using var gate = await _modelLock.AcquireAsync(ct);
 
         try
         {
@@ -123,7 +121,8 @@ public class MusicLibraryService : IMusicLibraryService
                 await _semaphore.WaitAsync(ct);
                 try
                 {
-                    var result = await ProcessSongAsync(file, ct);
+                    // 已持有模型锁，走 Core 避免重入死锁
+                    var result = await ProcessSongCoreAsync(file, ct);
                     if (result.IsSuccess && result.Value is not null)
                     {
                         // 加锁保护 List 写入，避免多线程同时 Add 导致数据损坏
@@ -174,6 +173,20 @@ public class MusicLibraryService : IMusicLibraryService
     /// <inheritdoc/>
     public async Task<Result> ToggleLikeAsync(int songId, bool isLiked)
     {
+        // Like no-op：状态未变则不写库、不更新画像，避免重复 Like 污染均值
+        var songResult = await _songRepository.GetByIdAsync(songId);
+        if (!songResult.IsSuccess)
+        {
+            return songResult;
+        }
+
+        var song = songResult.Value!;
+        if (song.IsLiked == isLiked)
+        {
+            _logger.LogDebug("喜欢状态未变，跳过: SongId={SongId}, IsLiked={IsLiked}", songId, isLiked);
+            return Result.Success();
+        }
+
         var result = await _songRepository.UpdateLikeStatusAsync(songId, isLiked);
         if (!result.IsSuccess)
         {
@@ -191,7 +204,7 @@ public class MusicLibraryService : IMusicLibraryService
         }
         else
         {
-            // 取消喜欢无法"减去"已聚合的均值，只能从剩余喜欢歌曲全量重建
+            // 取消喜欢无法"减去"已聚合的均值，只能从剩余喜欢歌曲全量重建（空喜欢会清空画像）
             var rebuildResult = await _profileService.RebuildProfileAsync();
             if (!rebuildResult.IsSuccess)
             {
@@ -251,6 +264,15 @@ public class MusicLibraryService : IMusicLibraryService
     /// </remarks>
     /// <inheritdoc/>
     public async Task<Result<SongDto>> ProcessSongAsync(string filePath, CancellationToken ct = default)
+    {
+        await using var gate = await _modelLock.AcquireAsync(ct);
+        return await ProcessSongCoreAsync(filePath, ct);
+    }
+
+    /// <summary>
+    /// 处理单首歌曲：解码、特征提取并入库（调用方须已持有模型锁）。
+    /// </summary>
+    private async Task<Result<SongDto>> ProcessSongCoreAsync(string filePath, CancellationToken ct)
     {
         try
         {

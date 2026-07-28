@@ -75,12 +75,18 @@ public class ProfileServiceTests : IDisposable
     }
 
     /// <summary>
-    /// 没有喜欢的歌曲时，全量重建应返回失败。
+    /// 没有喜欢的歌曲时，全量重建应清空画像并返回成功。
     /// </summary>
     [Fact]
-    public async Task RebuildProfileAsync_NoLikedSongs_ReturnsFailure()
+    public async Task RebuildProfileAsync_NoLikedSongs_ClearsProfile()
     {
-        // Arrange: 仓储返回空的喜欢列表
+        // Arrange: 先写入画像，再清空喜欢列表
+        await _profileRepository.SaveAsync(new UserProfile
+        {
+            Id = 1,
+            AcousticMeanVectorBlob = _vectorSerializer.Serialize(new float[] { 1f, 2f }),
+            LastUpdated = DateTime.UtcNow
+        });
         _songRepositoryMock
             .Setup(r => r.GetLikedSongsAsync())
             .ReturnsAsync(Result<IReadOnlyList<Song>>.Success(new List<Song>()));
@@ -89,14 +95,18 @@ public class ProfileServiceTests : IDisposable
         var result = await _service.RebuildProfileAsync();
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsSuccess.Should().BeTrue();
+        var profileResult = await _profileRepository.GetAsync();
+        profileResult.IsSuccess.Should().BeTrue();
+        profileResult.Value!.AcousticMeanVectorBlob.Should().BeNull();
+        profileResult.Value.DeepMeanVectorBlob.Should().BeNull();
     }
 
     /// <summary>
-    /// 喜欢歌曲均无声学特征向量时，全量重建应返回失败。
+    /// 喜欢歌曲均无声学特征向量时，全量重建应清空画像并返回成功。
     /// </summary>
     [Fact]
-    public async Task RebuildProfileAsync_NoAcousticVectors_ReturnsFailure()
+    public async Task RebuildProfileAsync_NoAcousticVectors_ClearsProfile()
     {
         // Arrange: 喜欢列表中的歌曲均无 AcousticVectorBlob
         var songs = new List<Song>
@@ -112,7 +122,9 @@ public class ProfileServiceTests : IDisposable
         var result = await _service.RebuildProfileAsync();
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
+        result.IsSuccess.Should().BeTrue();
+        var profileResult = await _profileRepository.GetAsync();
+        profileResult.Value!.AcousticMeanVectorBlob.Should().BeNull();
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
@@ -52,6 +53,7 @@ public class MusicLibraryServiceTests
             _vectorSerializerMock.Object,
             _songRepositoryMock.Object,
             _profileServiceMock.Object,
+            new ModelOperationLock(),
             featureOptions,
             scanOptions,
             Mock.Of<ILogger<MusicLibraryService>>());
@@ -140,7 +142,9 @@ public class MusicLibraryServiceTests
     [Fact]
     public async Task ToggleLikeAsync_Like_TriggersIncrementalUpdate()
     {
-        // Arrange: 仓储更新成功；画像增量更新返回成功
+        // Arrange: 当前未喜欢；仓储更新成功；画像增量更新返回成功
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(Result<Song>.Success(new Song { Id = 1, IsLiked = false }));
         _songRepositoryMock.Setup(r => r.UpdateLikeStatusAsync(It.IsAny<int>(), true))
             .ReturnsAsync(Result.Success());
         _profileServiceMock.Setup(p => p.UpdateProfileIncrementalAsync(It.IsAny<int>()))
@@ -156,12 +160,30 @@ public class MusicLibraryServiceTests
     }
 
     /// <summary>
+    /// 重复标记已喜欢歌曲应为 no-op，不更新画像。
+    /// </summary>
+    [Fact]
+    public async Task ToggleLikeAsync_AlreadyLiked_IsNoOp()
+    {
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(Result<Song>.Success(new Song { Id = 1, IsLiked = true }));
+
+        var result = await _service.ToggleLikeAsync(1, isLiked: true);
+
+        result.IsSuccess.Should().BeTrue();
+        _songRepositoryMock.Verify(r => r.UpdateLikeStatusAsync(It.IsAny<int>(), It.IsAny<bool>()), Times.Never);
+        _profileServiceMock.Verify(p => p.UpdateProfileIncrementalAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    /// <summary>
     /// 取消喜欢时应触发全量重建，不应触发增量更新。
     /// </summary>
     [Fact]
     public async Task ToggleLikeAsync_Unlike_TriggersRebuild()
     {
-        // Arrange: 仓储更新成功；画像全量重建返回成功
+        // Arrange: 当前已喜欢；仓储更新成功；画像全量重建返回成功
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(Result<Song>.Success(new Song { Id = 1, IsLiked = true }));
         _songRepositoryMock.Setup(r => r.UpdateLikeStatusAsync(It.IsAny<int>(), false))
             .ReturnsAsync(Result.Success());
         _profileServiceMock.Setup(p => p.RebuildProfileAsync())
@@ -182,7 +204,9 @@ public class MusicLibraryServiceTests
     [Fact]
     public async Task ToggleLikeAsync_RepositoryFails_ReturnsFailure()
     {
-        // Arrange: 仓储更新失败
+        // Arrange: 当前未喜欢；仓储更新失败
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(Result<Song>.Success(new Song { Id = 1, IsLiked = false }));
         _songRepositoryMock.Setup(r => r.UpdateLikeStatusAsync(It.IsAny<int>(), It.IsAny<bool>()))
             .ReturnsAsync(Result.Failure("更新失败"));
 

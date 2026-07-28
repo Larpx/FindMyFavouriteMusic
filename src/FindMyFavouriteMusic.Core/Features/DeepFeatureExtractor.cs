@@ -24,12 +24,13 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
 /// <para><b>优雅降级：</b>当未配置模型路径或加载失败时，<see cref="IsModelLoaded"/> 返回 false，
 /// 调用方可据此判断是否启用深度特征，从而回退到仅声学模式，保证系统可用性。</para>
 /// </remarks>
-public class DeepFeatureExtractor : IDeepFeatureExtractor
+public class DeepFeatureExtractor : IDeepFeatureExtractor, IDisposable
 {
     private readonly OnnxModelOptions _options;
     private readonly ILogger<DeepFeatureExtractor> _logger;
     private readonly IHardwareAccelerator _accelerator;
     private InferenceSession? _session;
+    private bool _disposed;
 
     /// <summary>
     /// 当前已加载模型的路径，用于推理失败回退 CPU 时重建会话。
@@ -116,6 +117,8 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
     /// </remarks>
     public Result LoadModel(string modelPath, DeepModelType modelType)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (!File.Exists(modelPath))
         {
             return Result.Failure($"模型文件不存在: {modelPath}");
@@ -123,20 +126,36 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor
 
         try
         {
-            _session = CreateSession(modelPath);
+            // 先创建新会话；成功后再原子替换并 Dispose 旧会话。
+            // 失败时保留原会话，避免加载失败破坏当前可用模型。
+            var newSession = CreateSession(modelPath);
+            var oldSession = _session;
+            _session = newSession;
             _modelPath = modelPath;
             // 新模型加载时重置回退标志，允许后续推理在 OpenVINO 失败时再次尝试 CPU 回退
             _hasAttemptedCpuFallback = false;
+            oldSession?.Dispose();
             _logger.LogInformation("ONNX 模型加载成功: {ModelPath} (EP={EP})", modelPath, _accelerator.ActiveExecutionProvider);
             return Result.Success();
         }
         catch (Exception ex)
         {
-            // 加载异常时显式置 null，避免持有部分初始化的会话导致后续推理出现不可预期错误
-            _session = null;
             _logger.LogError(ex, "ONNX 模型加载失败: {ModelPath}", modelPath);
             return Result.Failure(ex);
         }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _session?.Dispose();
+        _session = null;
     }
 
     /// <summary>

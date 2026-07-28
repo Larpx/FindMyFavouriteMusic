@@ -26,12 +26,13 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Core.Features;
 /// <para>4. 执行推理，取最后一层隐藏状态；</para>
 /// <para>5. 对所有 token 的隐藏状态取时间平均，得到 768 维特征。</para>
 /// </remarks>
-public class MertFeatureExtractor : IDeepFeatureExtractor
+public class MertFeatureExtractor : IDeepFeatureExtractor, IDisposable
 {
     private readonly OnnxModelOptions _options;
     private readonly ILogger<MertFeatureExtractor> _logger;
     private readonly IHardwareAccelerator _accelerator;
     private InferenceSession? _session;
+    private bool _disposed;
 
     /// <summary>
     /// 当前已加载模型的路径，用于推理失败回退 CPU 时重建会话。
@@ -105,6 +106,8 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
     /// </remarks>
     public Result LoadModel(string modelPath, DeepModelType modelType)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         if (!File.Exists(modelPath))
         {
             return Result.Failure($"模型文件不存在: {modelPath}");
@@ -112,19 +115,36 @@ public class MertFeatureExtractor : IDeepFeatureExtractor
 
         try
         {
-            _session = CreateSession(modelPath);
+            // 先创建新会话；成功后再原子替换并 Dispose 旧会话。
+            // 失败时保留原会话，避免加载失败破坏当前可用模型。
+            var newSession = CreateSession(modelPath);
+            var oldSession = _session;
+            _session = newSession;
             _modelPath = modelPath;
             // 新模型加载时重置回退标志，允许后续推理在 OpenVINO 失败时再次尝试 CPU 回退
             _hasAttemptedCpuFallback = false;
+            oldSession?.Dispose();
             _logger.LogInformation("MERT ONNX 模型加载成功: {ModelPath} (EP={EP})", modelPath, _accelerator.ActiveExecutionProvider);
             return Result.Success();
         }
         catch (Exception ex)
         {
-            _session = null;
             _logger.LogError(ex, "MERT ONNX 模型加载失败: {ModelPath}", modelPath);
             return Result.Failure(ex);
         }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _session?.Dispose();
+        _session = null;
     }
 
     /// <summary>

@@ -53,6 +53,13 @@ public class AudioDecoder : IAudioDecoder
             return Result<float[]>.Failure($"文件不存在: {filePath}");
         }
 
+        var fileSize = new FileInfo(filePath).Length;
+        if (fileSize > AudioLimits.MaxFileSizeBytes)
+        {
+            return Result<float[]>.Failure(
+                $"文件过大（{fileSize / (1024.0 * 1024):F1}MB），超过硬限制 {AudioLimits.MaxFileSizeDisplay}");
+        }
+
         var format = AudioFormatDetector.DetectFromExtension(filePath);
         if (!SupportsFormat(format))
         {

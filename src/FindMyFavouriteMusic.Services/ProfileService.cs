@@ -85,8 +85,9 @@ public class ProfileService : IProfileService
         var likedSongs = likedResult.Value;
         if (likedSongs is null || likedSongs.Count == 0)
         {
-            _logger.LogWarning("没有喜欢的歌曲，无法构建画像");
-            return Result.Failure("没有喜欢的歌曲");
+            // 取消全部喜欢后必须清空画像，避免继续用旧均值做预测
+            _logger.LogInformation("没有喜欢的歌曲，清空用户画像");
+            return await ClearProfileAsync();
         }
 
         // 反序列化所有喜欢歌曲的特征向量
@@ -107,11 +108,11 @@ public class ProfileService : IProfileService
 
         if (acousticVectors.Count == 0)
         {
-            _logger.LogWarning("没有歌曲包含声学特征向量");
-            return Result.Failure("没有可用的特征向量");
+            _logger.LogWarning("没有歌曲包含声学特征向量，清空画像");
+            return await ClearProfileAsync();
         }
 
-        // 计算各维度均值
+        // 计算各维度均值；声学/深度样本数分别统计（深度子集可能更少）
         var acousticMean = ComputeMean(acousticVectors);
         var deepMean = deepVectors.Count > 0 ? ComputeMean(deepVectors) : null;
 
@@ -125,7 +126,26 @@ public class ProfileService : IProfileService
             LastUpdated = DateTime.UtcNow
         };
 
+        _logger.LogInformation(
+            "画像重建完成：声学样本 {AcousticCount}，深度样本 {DeepCount}",
+            acousticVectors.Count, deepVectors.Count);
+
         return await _profileRepository.SaveAsync(userProfile);
+    }
+
+    /// <summary>清空画像向量（保留表行，BLOB 置空）。</summary>
+    private Task<Result> ClearProfileAsync()
+    {
+        var empty = new UserProfile
+        {
+            Id = 1,
+            AcousticMeanVector = null,
+            AcousticMeanVectorBlob = null,
+            DeepMeanVector = null,
+            DeepMeanVectorBlob = null,
+            LastUpdated = DateTime.UtcNow
+        };
+        return _profileRepository.SaveAsync(empty);
     }
 
     /// <summary>
@@ -165,35 +185,39 @@ public class ProfileService : IProfileService
             ? _vectorSerializer.Deserialize(profile.DeepMeanVectorBlob)
             : null;
 
-        // 当前喜欢歌曲数（增量更新前的计数）
+        // 分别统计声学/深度样本数：喜欢列表已含新歌，增量前样本数 = 对应向量数 - 1（若新歌有该向量）
         var likedResult = await _songRepository.GetLikedSongsAsync();
-        var count = likedResult.IsSuccess && likedResult.Value is not null ? likedResult.Value.Count : 1;
-        // 注意：GetLikedSongsAsync 返回的是包含新加入歌曲后的列表，故 count 已为 +1 后的值
-        // Welford 公式中的 newCount 应为 count，currentCount 应为 count - 1
-        var previousCount = Math.Max(1, count - 1);
+        if (!likedResult.IsSuccess || likedResult.Value is null)
+        {
+            return await RebuildProfileAsync();
+        }
+
+        var likedSongs = likedResult.Value;
+        var acousticSampleCount = likedSongs.Count(s => s.AcousticVectorBlob is not null);
+        var deepSampleCount = likedSongs.Count(s => s.DeepVectorBlob is not null);
+        var previousAcousticCount = song.AcousticVectorBlob is not null
+            ? Math.Max(1, acousticSampleCount - 1)
+            : Math.Max(1, acousticSampleCount);
+        var previousDeepCount = song.DeepVectorBlob is not null
+            ? Math.Max(1, deepSampleCount - 1)
+            : Math.Max(1, deepSampleCount);
 
         float[]? updatedAcoustic = null;
         if (song.AcousticVectorBlob is not null)
         {
             var newVector = _vectorSerializer.Deserialize(song.AcousticVectorBlob);
-            updatedAcoustic = IncrementalMean(currentAcoustic, newVector, previousCount);
+            updatedAcoustic = IncrementalMean(currentAcoustic, newVector, previousAcousticCount);
         }
 
         // 深度均值更新：需处理画像尚未建立深度均值的过渡场景
-        // 场景：用户先在无模型状态下扫描并喜欢歌曲（画像仅有声学均值），
-        // 之后加载模型并喜欢有深度向量的新歌曲，此时画像深度均量为 null。
-        // 若不处理，深度均值将永远不会被建立，导致预测始终走声学模式。
         float[]? updatedDeep = null;
         if (currentDeep is not null && song.DeepVectorBlob is not null)
         {
-            // 两者都有：Welford 增量更新
             var newDeepVector = _vectorSerializer.Deserialize(song.DeepVectorBlob);
-            updatedDeep = IncrementalMean(currentDeep, newDeepVector, previousCount);
+            updatedDeep = IncrementalMean(currentDeep, newDeepVector, previousDeepCount);
         }
         else if (currentDeep is null && song.DeepVectorBlob is not null)
         {
-            // 画像无深度均值但新歌曲有深度向量：触发全量重建以正确建立深度均值
-            // 全量重建会遍历所有喜欢歌曲的深度向量，确保均值样本数与实际一致
             _logger.LogInformation("画像尚无深度均值，新歌曲包含深度向量，触发全量重建以建立深度均值");
             return await RebuildProfileAsync();
         }

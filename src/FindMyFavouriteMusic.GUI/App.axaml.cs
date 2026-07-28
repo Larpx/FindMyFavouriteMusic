@@ -192,7 +192,10 @@ public partial class App : Application
                 services.AddSingleton<IAcousticFeatureExtractor, AcousticFeatureExtractor>();
                 // 硬件加速器：单例，启动时检测 NPU，供提取器与设置页共享检测结果
                 services.AddSingleton<IHardwareAccelerator, HardwareAccelerator>();
-                services.AddSingleton<IDeepFeatureExtractor, DeepFeatureExtractorFactory>();
+                // 模型加载 ↔ 扫描/预测互斥
+                services.AddSingleton<IModelOperationLock, ModelOperationLock>();
+                services.AddSingleton<DeepFeatureExtractorFactory>();
+                services.AddSingleton<IDeepFeatureExtractor>(sp => sp.GetRequiredService<DeepFeatureExtractorFactory>());
                 services.AddSingleton<IFeatureAggregator, FeatureAggregator>();
                 services.AddSingleton<ISimilarityCalculator, CosineSimilarityCalculator>();
                 services.AddSingleton<IVectorSerializer, VectorSerializer>();
@@ -225,11 +228,25 @@ public partial class App : Application
             .Build();
     }
 
-    /// <summary>应用退出时停止 HostedService 并释放 Host 资源</summary>
+    /// <summary>应用退出时停止 HostedService 并释放 Host / ONNX 资源</summary>
     private void OnExit(object? sender, EventArgs e)
     {
         // 与 StartAsync 对应，触发 IHostedService.StopAsync 完成优雅关闭
         _host?.StopAsync().GetAwaiter().GetResult();
+
+        // 显式释放深度特征提取器（旧 ONNX Session），避免进程退出前会话驻留
+        if (_host is not null)
+        {
+            try
+            {
+                _host.Services.GetService<DeepFeatureExtractorFactory>()?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[App] 释放深度特征提取器失败: {ex.Message}");
+            }
+        }
+
         _host?.Dispose();
     }
 }
