@@ -10,8 +10,8 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
 /// </summary>
 public class DatabaseInitializer : IHostedService
 {
-    /// <summary>当前目标 schema 版本（B1）。</summary>
-    public const int CurrentSchemaVersion = 1;
+    /// <summary>当前目标 schema 版本（v2：音乐源字段 + 日推结果表）。</summary>
+    public const int CurrentSchemaVersion = 2;
 
     private readonly DatabaseOptions _options;
     private readonly ILogger<DatabaseInitializer> _logger;
@@ -94,7 +94,56 @@ public class DatabaseInitializer : IHostedService
             _logger.LogInformation("执行数据库迁移: v{From} → v1", version);
             await MigrateToV1Async(connection, ct);
             await SetUserVersionAsync(connection, 1, ct);
+            version = 1;
         }
+
+        if (version < 2)
+        {
+            _logger.LogInformation("执行数据库迁移: v{From} → v2", version);
+            await MigrateToV2Async(connection, ct);
+            await SetUserVersionAsync(connection, 2, ct);
+        }
+    }
+
+    private static async Task MigrateToV2Async(SqliteConnection connection, CancellationToken ct)
+    {
+        await AddColumnIfMissingAsync(connection, "Songs", "SourceId TEXT", ct);
+        await AddColumnIfMissingAsync(connection, "Songs", "ExternalId TEXT", ct);
+
+        await using (var idx = connection.CreateCommand())
+        {
+            idx.CommandText = """
+                CREATE UNIQUE INDEX IF NOT EXISTS IX_Songs_Source_External
+                ON Songs(SourceId, ExternalId)
+                WHERE SourceId IS NOT NULL AND ExternalId IS NOT NULL;
+                """;
+            await idx.ExecuteNonQueryAsync(ct);
+        }
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS RecommendResults (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                SourceId TEXT NOT NULL,
+                ExternalId TEXT NOT NULL,
+                Title TEXT,
+                Artist TEXT,
+                Album TEXT,
+                RecommendDate TEXT,
+                Reason TEXT,
+                Score REAL,
+                AcousticScore REAL,
+                DeepScore REAL,
+                Fee INTEGER,
+                Status TEXT,
+                ErrorMessage TEXT,
+                FetchedAt DATETIME NOT NULL,
+                ScoredAt DATETIME
+            );
+            CREATE INDEX IF NOT EXISTS IX_RecommendResults_SourceDate
+            ON RecommendResults(SourceId, RecommendDate);
+            """;
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task MigrateToV1Async(SqliteConnection connection, CancellationToken ct)

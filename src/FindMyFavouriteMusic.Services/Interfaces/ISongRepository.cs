@@ -37,4 +37,13 @@ public interface ISongRepository
 
     /// <summary>按 Id 查询；不存在返回 Failure。</summary>
     Task<Result<Song>> GetByIdAsync(int id);
+
+    /// <summary>按音乐源外部 Id 查询（不存在时 Value 为 null）。</summary>
+    Task<Result<Song?>> GetBySourceExternalIdAsync(string sourceId, string externalId);
+
+    /// <summary>按标题+艺人模糊匹配本地曲（用于红心导入对齐）。</summary>
+    Task<Result<Song?>> FindByTitleArtistAsync(string title, string? artist);
+
+    /// <summary>更新音乐源绑定字段。</summary>
+    Task<Result> UpdateSourceAsync(int id, string sourceId, string externalId);
 }

@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FindMyFavouriteMusic.Core\FindMyFavouriteMusic.Core.csproj" />
     <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />
+    <ProjectReference Include="..\FindMyFavouriteMusic.Sources.Abstractions\FindMyFavouriteMusic.Sources.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

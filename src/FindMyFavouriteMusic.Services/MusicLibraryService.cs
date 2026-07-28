@@ -7,6 +7,7 @@ using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Entities;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Models.Results;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Sources.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -338,7 +339,8 @@ public class MusicLibraryService : IMusicLibraryService
                 IsLiked = false,
                 FileMd5 = md5,
                 FileSize = fileInfo.Length,
-                Format = format
+                Format = format,
+                SourceId = MusicSourceIds.Local
             };
 
             ApplyTagsToSong(song);

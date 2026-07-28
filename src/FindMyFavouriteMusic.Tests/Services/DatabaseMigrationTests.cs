@@ -67,10 +67,29 @@ public class DatabaseMigrationTests : IDisposable
         columns.Should().Contain("DeepModelType");
         columns.Should().Contain("Album");
         columns.Should().Contain("Lyrics");
+        columns.Should().Contain("SourceId");
+        columns.Should().Contain("ExternalId");
 
         var profileColumns = await GetColumnsAsync("UserProfile");
         profileColumns.Should().Contain("AcousticSampleCount");
         profileColumns.Should().Contain("DeepSampleCount");
+
+        var tables = await GetTablesAsync();
+        tables.Should().Contain("RecommendResults");
+    }
+
+    private async Task<HashSet<string>> GetTablesAsync()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var cmd = _keepAlive.CreateCommand();
+        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table'";
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            set.Add(reader.GetString(0));
+        }
+
+        return set;
     }
 
     private async Task<HashSet<string>> GetColumnsAsync(string table)

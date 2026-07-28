@@ -36,11 +36,13 @@ public class SongRepository : ISongRepository
                 INSERT INTO Songs (
                     FilePath, Title, Artist, IsLiked, AcousticVector, DeepVector,
                     FileMd5, FileSize, DurationMs, Format, AcousticDim, DeepModelType, DeepDim, FeatureExtractedAt,
-                    Album, AlbumArtist, Genre, Year, Track, Disc, Comment, Lyrics)
+                    Album, AlbumArtist, Genre, Year, Track, Disc, Comment, Lyrics,
+                    SourceId, ExternalId)
                 VALUES (
                     @FilePath, @Title, @Artist, @IsLiked, @AcousticVectorBlob, @DeepVectorBlob,
                     @FileMd5, @FileSize, @DurationMs, @Format, @AcousticDim, @DeepModelType, @DeepDim, @FeatureExtractedAt,
-                    @Album, @AlbumArtist, @Genre, @Year, @Track, @Disc, @Comment, @Lyrics);
+                    @Album, @AlbumArtist, @Genre, @Year, @Track, @Disc, @Comment, @Lyrics,
+                    @SourceId, @ExternalId);
                 SELECT last_insert_rowid();
                 """;
 
@@ -304,6 +306,81 @@ public class SongRepository : ISongRepository
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<Song?>> GetBySourceExternalIdAsync(string sourceId, string externalId)
+    {
+        try
+        {
+            await using var connection = new SqliteConnection(_options.ConnectionString);
+            await connection.OpenAsync();
+
+            var row = await connection.QueryFirstOrDefaultAsync<SongRow>(
+                "SELECT * FROM Songs WHERE SourceId = @SourceId AND ExternalId = @ExternalId",
+                new { SourceId = sourceId, ExternalId = externalId });
+            return Result<Song?>.Success(row?.ToSong());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "按源外部 Id 查询失败: {SourceId}/{ExternalId}", sourceId, externalId);
+            return Result<Song?>.Failure(ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> UpdateSourceAsync(int id, string sourceId, string externalId)
+    {
+        try
+        {
+            await using var connection = new SqliteConnection(_options.ConnectionString);
+            await connection.OpenAsync();
+            await connection.ExecuteAsync(
+                "UPDATE Songs SET SourceId = @SourceId, ExternalId = @ExternalId WHERE Id = @Id",
+                new { Id = id, SourceId = sourceId, ExternalId = externalId });
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新音乐源字段失败: {SongId}", id);
+            return Result.Failure(ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<Song?>> FindByTitleArtistAsync(string title, string? artist)
+    {
+        try
+        {
+            await using var connection = new SqliteConnection(_options.ConnectionString);
+            await connection.OpenAsync();
+
+            SongRow? row;
+            if (string.IsNullOrWhiteSpace(artist))
+            {
+                row = await connection.QueryFirstOrDefaultAsync<SongRow>(
+                    "SELECT * FROM Songs WHERE lower(Title) = lower(@Title) LIMIT 1",
+                    new { Title = title });
+            }
+            else
+            {
+                row = await connection.QueryFirstOrDefaultAsync<SongRow>(
+                    """
+                    SELECT * FROM Songs
+                    WHERE lower(Title) = lower(@Title)
+                      AND (Artist IS NULL OR lower(Artist) = lower(@Artist) OR instr(lower(Artist), lower(@Artist)) > 0)
+                    LIMIT 1
+                    """,
+                    new { Title = title, Artist = artist });
+            }
+
+            return Result<Song?>.Success(row?.ToSong());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "按标题艺人匹配失败: {Title}/{Artist}", title, artist);
+            return Result<Song?>.Failure(ex);
+        }
+    }
+
     private static object ToInsertParams(Song song) => new
     {
         song.FilePath,
@@ -327,7 +404,9 @@ public class SongRepository : ISongRepository
         song.Track,
         song.Disc,
         song.Comment,
-        song.Lyrics
+        song.Lyrics,
+        song.SourceId,
+        song.ExternalId
     };
 
     private class SongRow
@@ -355,6 +434,8 @@ public class SongRepository : ISongRepository
         public string? Disc { get; set; }
         public string? Comment { get; set; }
         public string? Lyrics { get; set; }
+        public string? SourceId { get; set; }
+        public string? ExternalId { get; set; }
 
         public Song ToSong() => new()
         {
@@ -380,7 +461,9 @@ public class SongRepository : ISongRepository
             Track = Track,
             Disc = Disc,
             Comment = Comment,
-            Lyrics = Lyrics
+            Lyrics = Lyrics,
+            SourceId = SourceId,
+            ExternalId = ExternalId
         };
     }
 }

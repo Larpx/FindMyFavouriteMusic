@@ -79,4 +79,10 @@ public class Song
 
     /// <summary>歌词</summary>
     public string? Lyrics { get; set; }
+
+    /// <summary>音乐源 Id（local / netease 等）；本地扫描默认为 local</summary>
+    public string? SourceId { get; set; }
+
+    /// <summary>源内外部 Id（如网易云 songId）</summary>
+    public string? ExternalId { get; set; }
 }

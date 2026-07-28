@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 纯抽象层，不绑定 Windows TFM -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />
+  </ItemGroup>
+
+</Project>
