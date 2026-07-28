@@ -261,9 +261,11 @@ public class MusicLibraryService : IMusicLibraryService
     /// <param name="ct">取消令牌</param>
     /// <returns>入库后的歌曲 DTO</returns>
     /// <remarks>
-    /// 幂等性设计：先按 FilePath 查询，若已存在则直接返回，避免重复解码与特征提取。
-    /// 例外：若已入库歌曲缺少深度向量且当前模型已加载（典型场景：先无模型扫描入库，
-    /// 之后加载模型再重新扫描），则补全深度特征并更新数据库，避免历史歌曲永远无法参与深度预测。
+    /// 幂等性设计：按 FilePath 查询已有记录后，结合 FileMd5 与深度模型契约决定是否跳过：
+    /// <para>1. MD5 未变且声学特征可用、深度契约匹配 → 跳过重算；</para>
+    /// <para>2. MD5 未变但深度缺失或模型类型/维度不匹配 → 仅补全深度；</para>
+    /// <para>3. MD5 变化或缺声学特征 → 全量重提并 UpdateFeatures；</para>
+    /// <para>4. 单文件超过 <see cref="AudioLimits.MaxFileSizeBytes"/> → 直接失败。</para>
     /// 解码失败时不阻断流程，仅不填充特征向量，仍将基础信息入库以便后续手动补全。
     /// </remarks>
     /// <inheritdoc/>

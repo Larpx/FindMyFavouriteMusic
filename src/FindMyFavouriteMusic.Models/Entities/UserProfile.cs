@@ -5,6 +5,7 @@
 /// </summary>
 public class UserProfile
 {
+    /// <summary>主键（当前单画像场景固定为 1）</summary>
     public int Id { get; set; }
 
     /// <summary>声学特征均值向量</summary>

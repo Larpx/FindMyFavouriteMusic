@@ -15,12 +15,14 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services;
 /// 预测服务，负责端到端编排：解码 → 特征提取 → 相似度计算 → 输出预测分数。
 /// </summary>
 /// <remarks>
-/// 提供两个 PredictAsync 重载：
+/// 提供三个单曲入口：
 /// 1. PredictAsync(string filePath)：从文件解码并提取特征后预测，适用于新文件尚未入库的场景；
 /// 2. PredictAsync(int songId)：优先复用数据库中已存储的特征向量，避免重复解码开销；
-///    若该歌曲尚无特征向量，则回退到按文件路径预测的流程。
+///    若该歌曲尚无特征向量，则回退到按文件路径预测的流程；
+/// 3. PredictWithProgressAsync：单文件预测并报告进度（供 UI 拖拽场景）。
 /// 设计考量：直接注入 ProfileRepository（而非 IProfileService）以避免循环依赖，
 /// 且预测场景只需读取画像数据，无需触发画像更新逻辑。
+/// 画像是否可用以 AcousticMeanVectorBlob 为准（仓储不填充 float[] 运行时字段）。
 /// </remarks>
 public class PredictionService : IPredictionService
 {

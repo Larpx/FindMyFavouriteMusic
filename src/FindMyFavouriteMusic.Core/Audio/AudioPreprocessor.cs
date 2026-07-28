@@ -15,6 +15,12 @@ public class AudioPreprocessor
     private readonly int _channels;
     private readonly int _targetSampleRate;
 
+    /// <summary>
+    /// 创建预处理器。
+    /// </summary>
+    /// <param name="sourceSampleRate">源采样率（Hz）</param>
+    /// <param name="channels">声道数</param>
+    /// <param name="targetSampleRate">目标采样率（Hz）</param>
     public AudioPreprocessor(int sourceSampleRate, int channels, int targetSampleRate)
     {
         _sourceSampleRate = sourceSampleRate;

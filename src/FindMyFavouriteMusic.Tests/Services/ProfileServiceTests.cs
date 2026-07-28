@@ -157,6 +157,8 @@ public class ProfileServiceTests : IDisposable
         savedMean.Should().HaveCount(2);
         savedMean[0].Should().BeApproximately(3f, 0.0001f);
         savedMean[1].Should().BeApproximately(5f, 0.0001f);
+        profileResult.Value.AcousticSampleCount.Should().Be(2);
+        profileResult.Value.DeepSampleCount.Should().Be(0);
     }
 
     /// <summary>
@@ -233,6 +235,32 @@ public class ProfileServiceTests : IDisposable
         savedMean.Should().HaveCount(2);
         savedMean[0].Should().BeApproximately(3f, 0.0001f);
         savedMean[1].Should().BeApproximately(5f, 0.0001f);
+    }
+
+    /// <summary>
+    /// 有画像与喜欢歌曲时，GetProfileAsync 应返回 DTO 统计。
+    /// </summary>
+    [Fact]
+    public async Task GetProfileAsync_WithProfile_ReturnsDto()
+    {
+        await _profileRepository.SaveAsync(new UserProfile
+        {
+            AcousticMeanVectorBlob = _vectorSerializer.Serialize([1f]),
+            DeepMeanVectorBlob = _vectorSerializer.Serialize([2f]),
+            AcousticSampleCount = 1,
+            DeepSampleCount = 1,
+            LastUpdated = DateTime.UtcNow
+        });
+        _songRepositoryMock.Setup(r => r.GetLikedSongsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<Song>>.Success(
+            [
+                new Song { Id = 1, FilePath = "/a.mp3", IsLiked = true }
+            ]));
+
+        var result = await _service.GetProfileAsync();
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.LikedSongCount.Should().Be(1);
+        result.Value.HasDeepProfile.Should().BeTrue();
     }
 
     /// <summary>

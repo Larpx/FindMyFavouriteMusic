@@ -9,7 +9,7 @@ Find My Favourite Music is a .NET-based application that uses acoustic and deep 
 系统采用**双特征体系**对音频进行建模：
 
 - **声学特征**：基于 NWaves 提取，输出 52 维向量（MFCC + 频谱质心 + 色度，各取均值与方差）
-- **深度特征**：基于 ONNX Runtime + VGGish 模型提取，输出 128 维向量（可选，缺失时优雅降级）
+- **深度特征**：基于 ONNX Runtime + VGGish（128 维）或 MERT（768 维），可选；缺失时优雅降级为仅声学
 
 用户画像采用 **Welford 在线增量更新算法**，可在 O(1) 时间复杂度内随新增喜欢歌曲实时更新，无需全量重算。最终预测通过余弦相似度配合**加权评分**（默认 0.4 声学 + 0.6 深度）得出，同时支持仅声学模式与声学+深度双模式。
 
@@ -17,12 +17,13 @@ Find My Favourite Music is a .NET-based application that uses acoustic and deep 
 
 - **音频格式支持**：WAV、MP3（跨平台），FLAC、M4A（仅 Windows，依赖 Media Foundation）
 - **声学特征提取**：基于 NWaves，输出 52 维向量（MFCC + 频谱质心 + 色度，各取均值+方差）
-- **深度特征提取**：基于 ONNX Runtime + VGGish 模型，输出 128 维向量（可选，优雅降级）
-- **音乐库管理**：扫描目录、并发处理、喜欢标记、SQLite 持久化
-- **用户画像构建**：全量重建 + Welford 增量更新（O(1) 时间复杂度）
+- **深度特征提取**：ONNX Runtime + VGGish / MERT（可选，优雅降级）
+- **音乐库管理**：扫描目录、MD5 特征缓存、喜欢标记、右侧详情编辑标签/封面（直接写回原文件）
+- **用户画像构建**：全量重建 + Welford 增量更新（O(1) 时间复杂度）；空喜欢自动清空画像
 - **品味预测**：余弦相似度 + 加权评分，支持仅声学/声学+深度双模式
 - **跨平台 UI**：基于 Avalonia 12 的桌面应用，支持拖拽上传
-- **配置系统**：appsettings.json（默认）+ usersettings.json（用户运行时）+ 环境变量
+- **配置系统**：`appsettings.json`（默认）+ `%AppData%/FindMyFavouriteMusic/usersettings.json`（用户运行时）+ 环境变量
+- **资源护栏**：单文件 ≤ 200MB；模型热切换 Dispose 旧 Session；加载与扫描/预测互斥
 
 ## Technology Stack
 
@@ -30,9 +31,10 @@ Find My Favourite Music is a .NET-based application that uses acoustic and deep 
 - **Avalonia UI 12.0.5**：跨平台桌面 UI
 - **CommunityToolkit.Mvvm 8.4.1**：MVVM 源生成器
 - **NAudio 2.3.0**：音频解码，WAV/MP3/FLAC/M4A
+- **TagLibSharp 2.3.0**：音频标签与内嵌封面读写
 - **NWaves 0.9.6**：声学特征提取，MFCC/色度/频谱质心
-- **ONNX Runtime 1.22.0**：深度学习推理，VGGish
-- **Microsoft.Data.Sqlite 9.0.5 + Dapper 2.1.66**：本地存储
+- **ONNX Runtime 1.22.0**：深度学习推理，VGGish / MERT
+- **Microsoft.Data.Sqlite 9.0.5 + Dapper 2.1.66**：本地存储（`PRAGMA user_version` 迁移）
 - **Microsoft.Extensions.Hosting 9.0.5**：依赖注入 + 配置 + 日志
 
 ## Project Structure
@@ -73,8 +75,9 @@ dotnet run
 ### Music Library
 
 1. Click "Scan Directory" to select a folder containing your music files
-2. The system will scan and extract features from all supported audio files
-3. Browse your library and click the heart icon to like songs
+2. The system will scan and extract features（二次扫描若 MD5 未变则跳过重算）
+3. Browse your library；单击歌曲打开右侧详情，可编辑标题/艺术家/专辑/封面等并**直接写回原文件**
+4. Click the heart icon to like songs（重复喜欢为 no-op；取消全部喜欢会清空画像）
 
 ### Prediction
 
@@ -85,15 +88,16 @@ dotnet run
 
 ### Settings
 
-- Adjust acoustic vs. deep feature weights
-- Load ONNX model for deep feature extraction
-- Rebuild your taste profile
+- Adjust acoustic / deep / acoustic-only weights
+- Configure ONNX model path、EP、OpenVINO 设备与缓存目录
+- Configure scan concurrency
+- Load ONNX model / rebuild taste profile
 
-所有设置会持久化到 `usersettings.json`，下次启动时自动恢复。
+所有用户设置持久化到 `%AppData%/FindMyFavouriteMusic/usersettings.json`（原子写入），下次启动自动恢复；首次会尝试从应用目录旧版 `usersettings.json` 迁移。
 
 ## Configuration
 
-Configuration is stored in `appsettings.json`:
+Configuration is stored in `appsettings.json`（默认）与用户配置：
 
 ```json
 {
@@ -106,8 +110,13 @@ Configuration is stored in `appsettings.json`:
     "EnableNormalization": false
   },
   "OnnxModel": {
-    "EnableDeepFeatures": false,
-    "VggishModelPath": null
+    "EnableDeepFeatures": true,
+    "ModelType": "MERT",
+    "VggishModelPath": null,
+    "MertModelPath": "Models/MERT-v1-95M.onnx",
+    "ExecutionProvider": "OpenVINO",
+    "OpenVinoDevice": "GPU",
+    "OpenVinoCacheDir": "./openvino-cache"
   },
   "Prediction": {
     "AcousticWeight": 0.4,
@@ -118,17 +127,21 @@ Configuration is stored in `appsettings.json`:
     "ConnectionString": "Data Source=findmyfavouritemusic.db"
   },
   "Scan": {
-    "SupportedExtensions": [".wav", ".mp3", ".flac", ".m4a"],
-    "MaxConcurrentProcessing": 4
+    "SupportedExtensions": [".wav", ".mp3", ".flac", ".ogg", ".m4a"],
+    "MaxConcurrentProcessing": 2,
+    "LastScanDirectory": null
   }
 }
 ```
 
 **配置优先级**（从高到低）：
 
-1. 环境变量（前缀 `FINDMYFAVOURITEMUSIC_`，例如 `FINDMYFAVOURITEMUSIC_Prediction__AcousticWeight`）
-2. `usersettings.json`（用户运行时配置，由设置页写入）
-3. `appsettings.json`（默认配置）
+1. 环境变量（前缀 `FINDMYFAVOURITEMUSIC_`）
+2. `%AppData%/FindMyFavouriteMusic/usersettings.json`
+3. 应用目录旧版 `usersettings.json`（兼容）
+4. `appsettings.json`
+
+单文件硬限制 **200MB**（解码前拒绝）。
 
 ## Wiki
 
@@ -149,6 +162,8 @@ Configuration is stored in `appsettings.json`:
 
 ## Documentation
 
+- [整改计划](docs/整改计划.md)：A–D 阶段目标、验收与提交记录
+- [测试与覆盖说明](docs/测试与覆盖说明.md)：测试命令与覆盖范围约定
 - [需求与设计文档](docs/需求与设计文档.md)：完整的需求规格和架构设计
 - [算法说明](docs/算法说明.md)：音频解码、特征提取、画像构建、相似度计算等核心算法的详细原理
 - [使用说明](docs/使用说明.md)：环境搭建、构建运行、功能使用、配置说明、FAQ

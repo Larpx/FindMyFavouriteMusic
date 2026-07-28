@@ -5,6 +5,7 @@
 /// </summary>
 public class Song
 {
+    /// <summary>主键</summary>
     public int Id { get; set; }
 
     /// <summary>文件绝对路径</summary>

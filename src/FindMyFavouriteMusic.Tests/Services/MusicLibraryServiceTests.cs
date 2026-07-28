@@ -343,4 +343,193 @@ public class MusicLibraryServiceTests
         result.Value.Should().HaveCount(1);
         result.Value![0].IsLiked.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task ProcessSongAsync_UnchangedMd5_SkipsDecode()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"skip_{Guid.NewGuid():N}.mp3");
+        await File.WriteAllBytesAsync(tempPath, [1, 2, 3, 4]);
+        try
+        {
+            var md5 = await FileContentHasher.ComputeMd5HexAsync(tempPath);
+            _songRepositoryMock.Setup(r => r.GetByFilePathAsync(tempPath))
+                .ReturnsAsync(Result<Song?>.Success(new Song
+                {
+                    Id = 11,
+                    FilePath = tempPath,
+                    FileMd5 = md5,
+                    Title = "Cached",
+                    AcousticVectorBlob = [1],
+                    DeepVectorBlob = [2],
+                    DeepModelType = "VGGish",
+                    DeepDim = 128
+                }));
+            _deepExtractorMock.SetupGet(d => d.IsModelLoaded).Returns(false);
+
+            var result = await _service.ProcessSongAsync(tempPath);
+            result.IsSuccess.Should().BeTrue();
+            result.Value!.Title.Should().Be("Cached");
+            _audioDecoderMock.Verify(d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessSongAsync_FileTooLarge_ReturnsFailure()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"big_{Guid.NewGuid():N}.mp3");
+        await using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+        {
+            fs.SetLength(AudioLimits.MaxFileSizeBytes + 1);
+        }
+
+        try
+        {
+            var result = await _service.ProcessSongAsync(tempPath);
+            result.IsSuccess.Should().BeFalse();
+            result.Error.Should().Contain(AudioLimits.MaxFileSizeDisplay);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public async Task GetSongDetailAsync_TagReadFails_FallsBackToDbFields()
+    {
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(8))
+            .ReturnsAsync(Result<Song>.Success(new Song
+            {
+                Id = 8,
+                FilePath = "/missing.mp3",
+                Title = "DbTitle",
+                Artist = "DbArt",
+                FileMd5 = "m",
+                IsLiked = false
+            }));
+        _audioTagMock.Setup(t => t.ReadTags("/missing.mp3"))
+            .Returns(Result<SongDetailDto>.Failure("cannot read"));
+
+        var result = await _service.GetSongDetailAsync(8);
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Title.Should().Be("DbTitle");
+        result.Value.Artist.Should().Be("DbArt");
+        result.Value.IsReadOnlyFile.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetSongDetailAsync_MergesTagsAndDbFields()
+    {
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(7))
+            .ReturnsAsync(Result<Song>.Success(new Song
+            {
+                Id = 7,
+                FilePath = "/x.mp3",
+                FileMd5 = "md5",
+                Format = "Mp3",
+                AcousticVectorBlob = [1],
+                DeepVectorBlob = [2],
+                AcousticDim = 52,
+                DeepDim = 128,
+                DeepModelType = "VGGish",
+                IsLiked = true
+            }));
+        _audioTagMock.Setup(t => t.ReadTags("/x.mp3"))
+            .Returns(Result<SongDetailDto>.Success(new SongDetailDto
+            {
+                FilePath = "/x.mp3",
+                Title = "FromFile",
+                Artist = "Art"
+            }));
+
+        var result = await _service.GetSongDetailAsync(7);
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Title.Should().Be("FromFile");
+        result.Value.FileMd5.Should().Be("md5");
+        result.Value.HasAcousticFeatures.Should().BeTrue();
+        result.Value.DeepModelType.Should().Be("VGGish");
+        result.Value.IsLiked.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SaveSongMetadataAsync_WritesTagsAndUpdatesDb()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"meta_{Guid.NewGuid():N}.wav");
+        await File.WriteAllBytesAsync(path, [1, 2, 3, 4, 5]);
+        try
+        {
+            _songRepositoryMock.Setup(r => r.GetByIdAsync(3))
+                .ReturnsAsync(Result<Song>.Success(new Song
+                {
+                    Id = 3,
+                    FilePath = path,
+                    AcousticVectorBlob = [1, 2]
+                }));
+            _audioTagMock.Setup(t => t.WriteTags(path, It.IsAny<SongMetadataUpdateDto>()))
+                .Returns(Result.Success());
+            _songRepositoryMock.Setup(r => r.UpdateMetadataAsync(It.IsAny<Song>()))
+                .ReturnsAsync(Result.Success());
+
+            var result = await _service.SaveSongMetadataAsync(new SongMetadataUpdateDto
+            {
+                SongId = 3,
+                Title = "NewTitle",
+                Artist = "NewArtist"
+            });
+
+            result.IsSuccess.Should().BeTrue();
+            _audioTagMock.Verify(t => t.WriteTags(path, It.IsAny<SongMetadataUpdateDto>()), Times.Once);
+            _songRepositoryMock.Verify(r => r.UpdateMetadataAsync(It.Is<Song>(s =>
+                s.Title == "NewTitle" && s.Artist == "NewArtist" && s.FileMd5 != null)), Times.Once);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessSongAsync_ExistingWithWrongDeepModel_SupplementsDeep()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"deep_{Guid.NewGuid():N}.mp3");
+        await File.WriteAllBytesAsync(tempPath, [1, 2, 3, 4]);
+        try
+        {
+            var md5 = await FileContentHasher.ComputeMd5HexAsync(tempPath);
+            _songRepositoryMock.Setup(r => r.GetByFilePathAsync(tempPath))
+                .ReturnsAsync(Result<Song?>.Success(new Song
+                {
+                    Id = 5,
+                    FilePath = tempPath,
+                    FileMd5 = md5,
+                    AcousticVectorBlob = [1],
+                    DeepVectorBlob = [2],
+                    DeepModelType = "VGGish",
+                    DeepDim = 128
+                }));
+            _deepExtractorMock.SetupGet(d => d.IsModelLoaded).Returns(true);
+            _deepExtractorMock.SetupGet(d => d.ModelType).Returns(DeepModelType.MERT);
+            _deepExtractorMock.SetupGet(d => d.FeatureDimension).Returns(768);
+            _audioDecoderMock.Setup(d => d.DecodeAsync(tempPath, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<float[]>.Success(new float[100]));
+            _deepExtractorMock.Setup(d => d.ExtractAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<float[]>.Success(new float[768]));
+            _vectorSerializerMock.Setup(v => v.Serialize(It.IsAny<float[]>())).Returns([9, 9]);
+            _songRepositoryMock.Setup(r => r.UpdateFeaturesAsync(It.IsAny<Song>()))
+                .ReturnsAsync(Result.Success());
+
+            var result = await _service.ProcessSongAsync(tempPath);
+            result.IsSuccess.Should().BeTrue();
+            _deepExtractorMock.Verify(d => d.ExtractAsync(It.IsAny<float[]>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+            _songRepositoryMock.Verify(r => r.UpdateFeaturesAsync(It.IsAny<Song>()), Times.Once);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
 }

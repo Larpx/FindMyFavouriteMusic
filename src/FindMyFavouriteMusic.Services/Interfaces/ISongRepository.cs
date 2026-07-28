@@ -8,11 +8,22 @@ namespace Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
 /// </summary>
 public interface ISongRepository
 {
+    /// <summary>插入歌曲，返回新 Id。</summary>
     Task<Result<int>> InsertAsync(Song song);
+
+    /// <summary>按绝对路径查询（不存在时 Value 为 null）。</summary>
     Task<Result<Song?>> GetByFilePathAsync(string filePath);
+
+    /// <summary>查询所有喜欢歌曲。</summary>
     Task<Result<IReadOnlyList<Song>>> GetLikedSongsAsync();
+
+    /// <summary>查询全部歌曲。</summary>
     Task<Result<IReadOnlyList<Song>>> GetAllSongsAsync();
+
+    /// <summary>更新喜欢标记。</summary>
     Task<Result> UpdateLikeStatusAsync(int id, bool isLiked);
+
+    /// <summary>仅更新声学/深度向量 BLOB（不改指纹）。</summary>
     Task<Result> UpdateVectorsAsync(int id, byte[]? acousticVectorBlob, byte[]? deepVectorBlob);
 
     /// <summary>更新特征向量与指纹/契约字段（文件内容变化或补全深度时）。</summary>
@@ -24,5 +35,6 @@ public interface ISongRepository
     /// <summary>更新元数据镜像字段（不含向量）。</summary>
     Task<Result> UpdateMetadataAsync(Song song);
 
+    /// <summary>按 Id 查询；不存在返回 Failure。</summary>
     Task<Result<Song>> GetByIdAsync(int id);
 }

@@ -14,6 +14,7 @@ public class AudioTagService : IAudioTagService
 {
     private readonly ILogger<AudioTagService> _logger;
 
+    /// <summary>构造标签服务。</summary>
     public AudioTagService(ILogger<AudioTagService> logger)
     {
         _logger = logger;
@@ -144,9 +145,11 @@ public class AudioTagService : IAudioTagService
         return attrs.HasFlag(System.IO.FileAttributes.ReadOnly);
     }
 
+    /// <summary>空白字符串归一为 null，便于 UI 空态展示。</summary>
     private static string? NullIfEmpty(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    /// <summary>将 Track/Disc 的 number/count 格式化为 <c>n</c> 或 <c>n/m</c>。</summary>
     private static string? FormatTrack(uint number, uint count)
     {
         if (number == 0)
@@ -157,6 +160,7 @@ public class AudioTagService : IAudioTagService
         return count > 0 ? $"{number}/{count}" : number.ToString();
     }
 
+    /// <summary>解析 UI 输入的曲目/碟号字符串并写回 TagLib 字段。</summary>
     private static void ApplyTrack(Tag tag, string? value, bool isDisc)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -195,6 +199,7 @@ public class AudioTagService : IAudioTagService
         }
     }
 
+    /// <summary>根据文件头猜测封面 MIME（缺省 jpeg）。</summary>
     private static string GuessMime(byte[] data)
     {
         if (data.Length >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF)

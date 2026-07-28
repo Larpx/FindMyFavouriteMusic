@@ -10,7 +10,7 @@ public class ScanOptions
     /// <summary>支持的音频文件扩展名</summary>
     public List<string> SupportedExtensions { get; set; } = [".mp3", ".wav", ".flac", ".ogg", ".m4a"];
 
-    /// <summary>最大并发处理数</summary>
+    /// <summary>最大并发处理数（设置页校验范围 1~32）</summary>
     public int MaxConcurrentProcessing { get; set; } = 2;
 
     /// <summary>
