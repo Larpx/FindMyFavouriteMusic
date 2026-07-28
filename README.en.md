@@ -1,103 +1,60 @@
 # Find My Favourite Music
 
-A music taste prediction system that analyzes your music library and predicts songs you'll likely enjoy based on your listening preferences.
+A desktop app that learns your taste from songs you mark as liked, then scores how well new tracks match that taste.
 
-## Overview
+[中文](README.md) · [User guide](docs/用户使用说明.md) · [Developer guide](docs/开发说明.md)
 
-Find My Favourite Music is a .NET-based application that uses acoustic and deep learning features to analyze your music collection and build a personalized taste profile. The system extracts audio features from your liked songs, compares them with other tracks in your library, and predicts which songs match your musical preferences.
+---
 
-## Features
+## What it does
 
-- **Audio Format Support**: Decode and process WAV and MP3 files
-- **Acoustic Feature Extraction**: Extract MFCC and other acoustic features from audio
-- **Deep Feature Extraction**: ONNX-based deep learning feature extraction (VGGish model)
-- **Music Library Management**: Scan directories, manage songs, and track favorites
-- **User Profile Building**: Build a personalized taste profile from liked songs
-- **Taste Prediction**: Predict which songs you'll likely enjoy based on your profile
-- **Cross-Platform UI**: Avalonia-based cross-platform desktop application
+- Scan and browse your local music library
+- Build a taste profile from liked songs
+- Predict a 0–100 match score for a track (file picker or drag-and-drop)
+- Edit tags and cover art in a detail panel and write them back to the file
+- Optionally use a deep model for richer features (works without it too)
 
-## Technology Stack
+---
 
-- **.NET 8**: Core runtime
-- **Avalonia UI**: Cross-platform desktop UI
-- **NAudio**: Audio decoding and processing
-- **ONNX Runtime**: Deep learning inference
-- **SQLite**: Local data storage
+## How it works (briefly)
 
-## Project Structure
+1. **Scan** a folder; the app analyzes each track and stores results  
+2. You **like** songs; the app updates your taste profile  
+3. On **Prediction**, pick or drop a file to get a **match score**
 
-```
-src/
-├── FindMyFavouriteMusic.Core/       # Core audio processing and feature extraction
-├── FindMyFavouriteMusic.Services/ # Business services
-├── FindMyFavouriteMusic.Models/   # DTOs, entities, and models
-├── FindMyFavouriteMusic.GUI/     # Avalonia UI application
-└── FindMyFavouriteMusic.Tests/   # Unit tests
-```
+See the [user guide](docs/用户使用说明.md) (Chinese) for day-to-day use, and [算法说明](docs/算法说明.md) for algorithms.
 
-## Installation
+---
 
-### Prerequisites
+## Quick start
 
-- .NET 8 SDK
-- For deep features: VGGish ONNX model (optional)
-
-### Build
+**Requires**: Windows 10+ (recommended), [.NET 10 SDK](https://dotnet.microsoft.com/download) when running from source
 
 ```bash
 cd src
 dotnet build
+dotnet run --project FindMyFavouriteMusic.GUI
 ```
 
-### Run
+1. **Library** → scan a folder → like a few songs  
+2. **Prediction** → choose or drop a file → read the score  
+3. **Settings** → adjust weights or load an optional deep model when needed  
 
-```bash
-cd src/FindMyFavouriteMusic.GUI
-dotnet run
-```
+---
 
-## Usage
+## Project layout
 
-### Music Library
+| Path | Purpose |
+|------|---------|
+| `src/` | Solution and source |
+| `docs/` | User, developer, and algorithm docs |
+| `scripts/` | Benchmarks and helper scripts |
+| `LICENSE` | MIT |
 
-1. Click "Scan Directory" to select a folder containing your music files
-2. The system will scan and extract features from all supported audio files
-3. Browse your library and click the heart icon to like songs
+For contributing and internals, see [开发说明](docs/开发说明.md) (Chinese).
 
-### Prediction
-
-1. Ensure you have liked some songs to build your profile
-2. Go to the Prediction page
-3. Select a song file to predict
-4. View the prediction score and detailed breakdown
-
-### Settings
-
-- Adjust acoustic vs. deep feature weights
-- Load ONNX model for deep feature extraction
-- Rebuild your taste profile
-
-## Configuration
-
-Configuration is stored in `appsettings.json`:
-
-```json
-{
-  "FeatureExtraction": {
-    "MfccCoefficientCount": 13,
-    "MelFilterBankSize": 26,
-    "TargetSampleRate": 16000
-  },
-  "OnnxModel": {
-    "EnableDeepFeatures": false
-  },
-  "Prediction": {
-    "AcousticWeight": 0.4,
-    "DeepWeight": 0.6
-  }
-}
-```
+---
 
 ## License
 
-See the LICENSE file for details.
+[MIT](LICENSE) © 2026 Larpx

@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>preview</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- CPM 开关以 Directory.Packages.props 为准；此处保留以防孤立项目未导入 Packages.props -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <!--
       统一命名空间前缀：所有项目的代码命名空间均为

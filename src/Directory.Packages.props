@@ -1,39 +1,52 @@
 <Project>
-  <ItemGroup>
-    <!-- Avalonia -->
-    <PackageVersion Include="Avalonia" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.0.1" />
-    <!-- MVVM -->
-    <PackageVersion Include="BunLabs.NAudio.Flac" Version="2.0.1" />
-    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.1" />
-    <!-- Audio -->
+  <!--
+    Central Package Management（CPM）：所有 PackageReference 版本集中在此声明，
+    各 csproj 只写 Include，不写 Version。
+    升级包时只改本文件。
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- 传递依赖也按本文件版本钉死，避免各项目解析出不同传递版本 -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup Label="UI - Avalonia">
+    <PackageVersion Include="Avalonia" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.0" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup Label="Audio">
     <PackageVersion Include="NAudio" Version="2.3.0" />
     <PackageVersion Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageVersion Include="BunLabs.NAudio.Flac" Version="2.0.1" />
     <PackageVersion Include="NWaves" Version="0.9.6" />
-    <!-- ML -->
-    <PackageVersion Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.22.0" />
-    <PackageVersion Include="Intel.ML.OnnxRuntime.OpenVino" Version="1.22.0" />
-    <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageVersion Include="System.Management" Version="9.0.5" />
-    <!-- Data -->
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.5" />
-    <PackageVersion Include="Dapper" Version="2.1.66" />
-    <!-- Hosting/DI/Logging -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.5" />
-    <!-- Testing -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+  <ItemGroup Label="ML - ONNX（Managed 与 OpenVINO 主版本对齐；Intel 包当前最高 1.24.1）">
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.28.0" />
+    <PackageVersion Include="Intel.ML.OnnxRuntime.OpenVino" Version="1.24.1" />
+    <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup Label="Data">
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <PackageVersion Include="Dapper" Version="2.1.79" />
+  </ItemGroup>
+  <ItemGroup Label="Platform / Hosting（与 net10 对齐）">
+    <PackageVersion Include="System.Management" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.10" />
+  </ItemGroup>
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Moq" Version="4.20.72" />
-    <PackageVersion Include="FluentAssertions" Version="8.2.0" />
+    <PackageVersion Include="FluentAssertions" Version="8.10.0" />
   </ItemGroup>
 </Project>
