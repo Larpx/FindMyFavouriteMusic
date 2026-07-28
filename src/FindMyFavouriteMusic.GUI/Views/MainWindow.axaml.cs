@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     {
         NavLibrary.Classes.Set("active", currentPage is MusicLibraryViewModel);
         NavPrediction.Classes.Set("active", currentPage is PredictionViewModel);
+        NavDiscover.Classes.Set("active", currentPage is DiscoverViewModel);
         NavSettings.Classes.Set("active", currentPage is SettingsViewModel);
     }
 }
