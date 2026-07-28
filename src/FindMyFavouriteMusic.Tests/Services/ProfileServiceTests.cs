@@ -201,6 +201,7 @@ public class ProfileServiceTests : IDisposable
         {
             Id = 1,
             AcousticMeanVectorBlob = _vectorSerializer.Serialize(new float[] { 4f, 6f }),
+            AcousticSampleCount = 1,
             LastUpdated = DateTime.UtcNow
         };
         await _profileRepository.SaveAsync(existingProfile);
@@ -214,27 +215,109 @@ public class ProfileServiceTests : IDisposable
         };
         _songRepositoryMock.Setup(r => r.GetByIdAsync(5))
             .ReturnsAsync(Result<Song>.Success(newSong));
-        // 喜欢列表返回 2 首（包含新加入的歌曲），故 previousCount = 2 - 1 = 1，newCount = 2
-        _songRepositoryMock.Setup(r => r.GetLikedSongsAsync())
-            .ReturnsAsync(Result<IReadOnlyList<Song>>.Success(new List<Song>
-            {
-                new() { Id = 1 },
-                newSong
-            }));
 
         // Act
         var result = await _service.UpdateProfileIncrementalAsync(5);
 
-        // Assert: Welford 公式
+        // Assert: Welford 公式（previousCount=1 → newCount=2）
         // new_mean[0] = 4 + (2 - 4) / 2 = 3
         // new_mean[1] = 6 + (4 - 6) / 2 = 5
         result.IsSuccess.Should().BeTrue();
         var profileResult = await _profileRepository.GetAsync();
         profileResult.IsSuccess.Should().BeTrue();
-        var savedMean = _vectorSerializer.Deserialize(profileResult.Value!.AcousticMeanVectorBlob!);
+        profileResult.Value!.AcousticSampleCount.Should().Be(2);
+        var savedMean = _vectorSerializer.Deserialize(profileResult.Value.AcousticMeanVectorBlob!);
         savedMean.Should().HaveCount(2);
         savedMean[0].Should().BeApproximately(3f, 0.0001f);
         savedMean[1].Should().BeApproximately(5f, 0.0001f);
+    }
+
+    /// <summary>
+    /// 新喜欢歌曲无声学向量时：不更新声学均值，且 AcousticSampleCount 保持画像原值
+    /// （不得用喜欢列表重算覆盖，否则会与均值实际样本数脱节）。
+    /// </summary>
+    [Fact]
+    public async Task UpdateProfileIncrementalAsync_SongWithoutAcoustic_PreservesAcousticSampleCount()
+    {
+        var mean = new float[] { 4f, 6f };
+        await _profileRepository.SaveAsync(new UserProfile
+        {
+            Id = 1,
+            AcousticMeanVectorBlob = _vectorSerializer.Serialize(mean),
+            DeepMeanVectorBlob = _vectorSerializer.Serialize(new float[] { 1f }),
+            AcousticSampleCount = 2,
+            DeepSampleCount = 1,
+            LastUpdated = DateTime.UtcNow
+        });
+
+        // 喜欢列表里另有带声学的歌；若误用「喜欢列表中有声学向量的数量」重算，
+        // 可能得到 3（或其它与均值无关的数），与真实均值样本数 2 不一致。
+        var songWithoutAcoustic = new Song
+        {
+            Id = 9,
+            IsLiked = true,
+            AcousticVectorBlob = null,
+            DeepVectorBlob = null
+        };
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(9))
+            .ReturnsAsync(Result<Song>.Success(songWithoutAcoustic));
+        _songRepositoryMock.Setup(r => r.GetLikedSongsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<Song>>.Success(
+            [
+                new Song { Id = 1, AcousticVectorBlob = _vectorSerializer.Serialize([1f, 1f]) },
+                new Song { Id = 2, AcousticVectorBlob = _vectorSerializer.Serialize([2f, 2f]) },
+                new Song { Id = 3, AcousticVectorBlob = _vectorSerializer.Serialize([3f, 3f]) }, // 未参与当前均值
+                songWithoutAcoustic
+            ]));
+
+        var result = await _service.UpdateProfileIncrementalAsync(9);
+
+        result.IsSuccess.Should().BeTrue();
+        var profile = (await _profileRepository.GetAsync()).Value!;
+        profile.AcousticSampleCount.Should().Be(2);
+        profile.DeepSampleCount.Should().Be(1);
+        var savedMean = _vectorSerializer.Deserialize(profile.AcousticMeanVectorBlob!);
+        savedMean[0].Should().BeApproximately(4f, 0.0001f);
+        savedMean[1].Should().BeApproximately(6f, 0.0001f);
+    }
+
+    /// <summary>
+    /// 新歌仅含深度向量、无声学时：深度样本数递增，声学样本数与均值不变。
+    /// </summary>
+    [Fact]
+    public async Task UpdateProfileIncrementalAsync_SongDeepOnly_UpdatesDeepCountKeepsAcoustic()
+    {
+        await _profileRepository.SaveAsync(new UserProfile
+        {
+            Id = 1,
+            AcousticMeanVectorBlob = _vectorSerializer.Serialize(new float[] { 4f, 6f }),
+            DeepMeanVectorBlob = _vectorSerializer.Serialize(new float[] { 10f }),
+            AcousticSampleCount = 2,
+            DeepSampleCount = 1,
+            LastUpdated = DateTime.UtcNow
+        });
+
+        var song = new Song
+        {
+            Id = 7,
+            IsLiked = true,
+            AcousticVectorBlob = null,
+            DeepVectorBlob = _vectorSerializer.Serialize(new float[] { 0f })
+        };
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(7))
+            .ReturnsAsync(Result<Song>.Success(song));
+
+        var result = await _service.UpdateProfileIncrementalAsync(7);
+
+        result.IsSuccess.Should().BeTrue();
+        var profile = (await _profileRepository.GetAsync()).Value!;
+        profile.AcousticSampleCount.Should().Be(2);
+        profile.DeepSampleCount.Should().Be(2);
+        // deep: 10 + (0-10)/2 = 5
+        var deepMean = _vectorSerializer.Deserialize(profile.DeepMeanVectorBlob!);
+        deepMean[0].Should().BeApproximately(5f, 0.0001f);
+        var acousticMean = _vectorSerializer.Deserialize(profile.AcousticMeanVectorBlob!);
+        acousticMean[0].Should().BeApproximately(4f, 0.0001f);
     }
 
     /// <summary>

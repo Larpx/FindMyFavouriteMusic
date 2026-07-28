@@ -157,7 +157,9 @@ public class ProfileService : IProfileService
     /// </summary>
     /// <remarks>
     /// Welford 公式：new_mean = old_mean + (new_vector - old_mean) / new_count
-    /// <para>相比全量重建（O(N)），增量更新只需 O(1)，适合频繁标记场景。</para>
+    /// <para>样本数以画像上的 <see cref="UserProfile.AcousticSampleCount"/> /
+    /// <see cref="UserProfile.DeepSampleCount"/> 为准（即当前均值实际基于的样本数），
+    /// 新歌缺少对应向量时不得改写该计数。</para>
     /// <para>注意：仓储仅持久化 BLOB，因此需先反序列化 BLOB 得到 float[] 再参与计算。</para>
     /// </remarks>
     public async Task<Result> UpdateProfileIncrementalAsync(int newLikedSongId)
@@ -183,42 +185,43 @@ public class ProfileService : IProfileService
             return await RebuildProfileAsync();
         }
 
+        // 旧库或异常数据未持久化样本数时，无法安全做 Welford，回退全量重建
+        if (profile.AcousticSampleCount <= 0)
+        {
+            _logger.LogInformation("画像声学样本数无效（{Count}），回退全量重建", profile.AcousticSampleCount);
+            return await RebuildProfileAsync();
+        }
+
         // 从 BLOB 反序列化得到当前均值向量（仓储不填充 float[] 字段）
         var currentAcoustic = _vectorSerializer.Deserialize(profile.AcousticMeanVectorBlob);
         float[]? currentDeep = profile.DeepMeanVectorBlob is not null
             ? _vectorSerializer.Deserialize(profile.DeepMeanVectorBlob)
             : null;
 
-        // 分别统计声学/深度样本数：喜欢列表已含新歌，增量前样本数 = 对应向量数 - 1（若新歌有该向量）
-        var likedResult = await _songRepository.GetLikedSongsAsync();
-        if (!likedResult.IsSuccess || likedResult.Value is null)
-        {
-            return await RebuildProfileAsync();
-        }
-
-        var likedSongs = likedResult.Value;
-        var acousticSampleCount = likedSongs.Count(s => s.AcousticVectorBlob is not null);
-        var deepSampleCount = likedSongs.Count(s => s.DeepVectorBlob is not null);
-        var previousAcousticCount = song.AcousticVectorBlob is not null
-            ? Math.Max(1, acousticSampleCount - 1)
-            : Math.Max(1, acousticSampleCount);
-        var previousDeepCount = song.DeepVectorBlob is not null
-            ? Math.Max(1, deepSampleCount - 1)
-            : Math.Max(1, deepSampleCount);
+        var acousticSampleCount = profile.AcousticSampleCount;
+        var deepSampleCount = profile.DeepSampleCount;
 
         float[]? updatedAcoustic = null;
         if (song.AcousticVectorBlob is not null)
         {
             var newVector = _vectorSerializer.Deserialize(song.AcousticVectorBlob);
-            updatedAcoustic = IncrementalMean(currentAcoustic, newVector, previousAcousticCount);
+            updatedAcoustic = IncrementalMean(currentAcoustic, newVector, acousticSampleCount);
+            acousticSampleCount += 1;
         }
 
         // 深度均值更新：需处理画像尚未建立深度均值的过渡场景
         float[]? updatedDeep = null;
         if (currentDeep is not null && song.DeepVectorBlob is not null)
         {
+            if (deepSampleCount <= 0)
+            {
+                _logger.LogInformation("画像有深度均值但样本数无效，回退全量重建");
+                return await RebuildProfileAsync();
+            }
+
             var newDeepVector = _vectorSerializer.Deserialize(song.DeepVectorBlob);
-            updatedDeep = IncrementalMean(currentDeep, newDeepVector, previousDeepCount);
+            updatedDeep = IncrementalMean(currentDeep, newDeepVector, deepSampleCount);
+            deepSampleCount += 1;
         }
         else if (currentDeep is null && song.DeepVectorBlob is not null)
         {
@@ -238,7 +241,7 @@ public class ProfileService : IProfileService
                 ? _vectorSerializer.Serialize(updatedDeep)
                 : profile.DeepMeanVectorBlob,
             AcousticSampleCount = acousticSampleCount,
-            DeepSampleCount = updatedDeep is not null || currentDeep is not null ? deepSampleCount : 0,
+            DeepSampleCount = currentDeep is not null || updatedDeep is not null ? deepSampleCount : 0,
             LastUpdated = DateTime.UtcNow
         };
 
