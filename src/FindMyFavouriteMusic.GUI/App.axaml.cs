@@ -13,6 +13,9 @@ using Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Database;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Interfaces;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Services.Sources;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Sources.Abstractions;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Sources.Netease;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -194,6 +197,8 @@ public partial class App : Application
                     context.Configuration.GetSection(DatabaseOptions.SectionName));
                 services.Configure<ScanOptions>(
                     context.Configuration.GetSection(ScanOptions.SectionName));
+                services.Configure<NeteaseOptions>(
+                    context.Configuration.GetSection(NeteaseOptions.SectionName));
 
                 // Core 层：音频解码、特征提取、相似度计算
                 services.AddSingleton<IAudioDecoder, AudioDecoder>();
@@ -213,6 +218,7 @@ public partial class App : Application
                 services.AddSingleton<DatabaseInitializer>();
                 services.AddSingleton<SongRepository>();
                 services.AddSingleton<ProfileRepository>();
+                services.AddSingleton<RecommendResultRepository>();
 
                 // Services 层：业务编排
                 services.AddSingleton<ISongRepository, SongRepository>();
@@ -222,6 +228,19 @@ public partial class App : Application
                 services.AddSingleton<IMusicLibraryService, MusicLibraryService>();
                 services.AddSingleton<IUserSettingsService, UserSettingsService>();
 
+                // 音乐源插件
+                services.AddSingleton<NeteaseCookieStore>();
+                services.AddHttpClient<NeteaseApiClient>(client =>
+                {
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                    client.Timeout = TimeSpan.FromMinutes(2);
+                });
+                services.AddSingleton<IMusicSourcePlugin, LocalMusicSourcePlugin>();
+                services.AddSingleton<IMusicSourcePlugin, NeteaseMusicSourcePlugin>();
+                services.AddSingleton<IMusicSourceRegistry, MusicSourceRegistry>();
+                services.AddSingleton<IMusicSourceOrchestrator, MusicSourceOrchestrator>();
+
                 // Hosted Services：数据库初始化
                 services.AddHostedService(sp => sp.GetRequiredService<DatabaseInitializer>());
 
@@ -230,6 +249,7 @@ public partial class App : Application
                 services.AddTransient<MusicLibraryViewModel>();
                 services.AddTransient<PredictionViewModel>();
                 services.AddTransient<SettingsViewModel>();
+                services.AddTransient<DiscoverViewModel>();
 
                 // GUI 服务
                 services.AddSingleton<IDialogService, DialogService>();

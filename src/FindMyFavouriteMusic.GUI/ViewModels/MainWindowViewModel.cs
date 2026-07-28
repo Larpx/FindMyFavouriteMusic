@@ -38,14 +38,14 @@ public partial class MainWindowViewModel : ViewModelBase
         MusicLibraryViewModel musicLibraryViewModel,
         PredictionViewModel predictionViewModel,
         SettingsViewModel settingsViewModel,
+        DiscoverViewModel discoverViewModel,
         ILogger<MainWindowViewModel> logger)
     {
         _logger = logger;
-        // 持有三个子 ViewModel 引用，供导航切换使用
         MusicLibraryViewModel = musicLibraryViewModel;
         PredictionViewModel = predictionViewModel;
         SettingsViewModel = settingsViewModel;
-        // 默认显示预测页（用户最常用的功能）
+        DiscoverViewModel = discoverViewModel;
         _currentPage = PredictionViewModel;
     }
 
@@ -63,6 +63,8 @@ public partial class MainWindowViewModel : ViewModelBase
     /// 设置页 ViewModel，可通过 <see cref="NavigateTo"/> 命令切换至此页。
     /// </summary>
     public SettingsViewModel SettingsViewModel { get; }
+
+    public DiscoverViewModel DiscoverViewModel { get; }
 
     /// <summary>
     /// 当前活跃的 ViewModel，供 View 的 ContentControl 绑定显示对应页面。
@@ -91,8 +93,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             "Library" => MusicLibraryViewModel,
             "Prediction" => PredictionViewModel,
+            "Discover" => DiscoverViewModel,
             "Settings" => SettingsViewModel,
-            // 未知标识回退到默认页，避免导航失败导致空白
             _ => MusicLibraryViewModel
         };
     }

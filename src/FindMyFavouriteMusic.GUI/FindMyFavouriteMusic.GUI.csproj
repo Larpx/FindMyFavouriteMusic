@@ -30,6 +30,7 @@
     <PackageReference Include="Avalonia.Controls.DataGrid" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
     <!--
       引用 OpenVINO native 包（ExcludeAssets=all 阻止默认复制，GeneratePathProperty=true 生成 $(Pkg...) 路径变量）
@@ -37,12 +38,15 @@
       把 ep-openvino/ 子目录复制到 GUI 输出目录，供 EpNativeLoader 运行时加载。
     -->
     <PackageReference Include="Intel.ML.OnnxRuntime.OpenVino" ExcludeAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\FindMyFavouriteMusic.Services\FindMyFavouriteMusic.Services.csproj" />
     <ProjectReference Include="..\FindMyFavouriteMusic.Core\FindMyFavouriteMusic.Core.csproj" />
     <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />
+    <ProjectReference Include="..\FindMyFavouriteMusic.Sources.Abstractions\FindMyFavouriteMusic.Sources.Abstractions.csproj" />
+    <ProjectReference Include="..\FindMyFavouriteMusic.Sources.Netease\FindMyFavouriteMusic.Sources.Netease.csproj" />
   </ItemGroup>
 
 </Project>

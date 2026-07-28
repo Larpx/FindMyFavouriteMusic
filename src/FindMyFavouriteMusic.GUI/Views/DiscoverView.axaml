@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Larpx.PersonalTools.FindMyFavouriteMusic.GUI.ViewModels"
+             x:Class="Larpx.PersonalTools.FindMyFavouriteMusic.GUI.Views.DiscoverView"
+             x:DataType="vm:DiscoverViewModel">
+  <DockPanel Margin="24">
+    <StackPanel DockPanel.Dock="Top" Spacing="12">
+      <TextBlock Text="音乐源 · 网易云" FontSize="22" FontWeight="Bold"/>
+      <TextBlock Text="{Binding AuthSummary}" Opacity="0.85"/>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="刷新登录状态" Command="{Binding RefreshAuthCommand}"/>
+        <Button Content="扫码登录" Command="{Binding BeginQrLoginCommand}"/>
+        <Button Content="退出登录" Command="{Binding SignOutCommand}"/>
+        <Button Content="导入红心" Command="{Binding ImportLikedCommand}" IsEnabled="{Binding !IsBusy}"/>
+        <Button Content="今日日推打分" Command="{Binding ScoreDailyCommand}" IsEnabled="{Binding !IsBusy}"/>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="加载历史日期" Command="{Binding LoadHistoryDatesCommand}"/>
+        <ComboBox Width="160" ItemsSource="{Binding HistoryDates}" SelectedItem="{Binding SelectedHistoryDate}"/>
+        <Button Content="历史日推打分" Command="{Binding ScoreHistoryCommand}" IsEnabled="{Binding !IsBusy}"/>
+        <Button Content="加载已存结果" Command="{Binding ReloadSavedCommand}"/>
+      </StackPanel>
+      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding ProgressText}" Opacity="0.7"/>
+      <Image Source="{Binding QrImage}" Width="180" Height="180" HorizontalAlignment="Left"/>
+    </StackPanel>
+
+    <DataGrid ItemsSource="{Binding Results}"
+              AutoGenerateColumns="False"
+              IsReadOnly="True"
+              Margin="0,16,0,0">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="分数" Binding="{Binding Score}" Width="70"/>
+        <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="2*"/>
+        <DataGridTextColumn Header="艺人" Binding="{Binding Artist}" Width="*"/>
+        <DataGridTextColumn Header="理由" Binding="{Binding Reason}" Width="*"/>
+        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="80"/>
+        <DataGridTextColumn Header="错误" Binding="{Binding ErrorMessage}" Width="*"/>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

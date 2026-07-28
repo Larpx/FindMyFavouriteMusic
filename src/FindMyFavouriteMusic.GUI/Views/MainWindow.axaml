@@ -71,6 +71,18 @@
                         </Grid>
                     </Button>
 
+                    <!-- 发现（音乐源） -->
+                    <Button x:Name="NavDiscover" Classes="nav-item"
+                            Command="{Binding NavigateToCommand}"
+                            CommandParameter="Discover">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Path Data="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 16l.8 2.2L8 19l-2.2.8L5 22l-.8-2.2L2 19l2.2-.8L5 16zm12 1l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3z"
+                                  Width="20" Height="20" Stretch="Uniform"
+                                  VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="发现" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+
                     <!-- 设置 -->
                     <Button x:Name="NavSettings" Classes="nav-item"
                             Command="{Binding NavigateToCommand}"
