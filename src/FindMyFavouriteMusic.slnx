@@ -4,5 +4,6 @@
   <Project Path=""FindMyFavouriteMusic.Models/FindMyFavouriteMusic.Models.csproj"" />
   <Project Path=""FindMyFavouriteMusic.Services/FindMyFavouriteMusic.Services.csproj"" />
   <Project Path=""FindMyFavouriteMusic.Sources.Abstractions/FindMyFavouriteMusic.Sources.Abstractions.csproj"" />
+  <Project Path=""FindMyFavouriteMusic.Sources.Netease/FindMyFavouriteMusic.Sources.Netease.csproj"" />
   <Project Path=""FindMyFavouriteMusic.Tests/FindMyFavouriteMusic.Tests.csproj"" />
 </Solution>

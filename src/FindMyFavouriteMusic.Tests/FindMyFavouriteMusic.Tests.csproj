@@ -10,6 +10,7 @@
     <ProjectReference Include="..\FindMyFavouriteMusic.Models\FindMyFavouriteMusic.Models.csproj" />
     <ProjectReference Include="..\FindMyFavouriteMusic.Core\FindMyFavouriteMusic.Core.csproj" />
     <ProjectReference Include="..\FindMyFavouriteMusic.Services\FindMyFavouriteMusic.Services.csproj" />
+    <ProjectReference Include="..\FindMyFavouriteMusic.Sources.Netease\FindMyFavouriteMusic.Sources.Netease.csproj" />
   </ItemGroup>
 
   <ItemGroup>
