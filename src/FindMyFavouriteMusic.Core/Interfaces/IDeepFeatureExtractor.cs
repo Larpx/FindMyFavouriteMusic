@@ -17,6 +17,9 @@ public interface IDeepFeatureExtractor
     /// <summary>提取的向量维度数</summary>
     int FeatureDimension { get; }
 
+    /// <summary>当前提取器对应的深度模型类型</summary>
+    DeepModelType ModelType { get; }
+
     /// <summary>
     /// 尝试加载 ONNX 模型
     /// </summary>

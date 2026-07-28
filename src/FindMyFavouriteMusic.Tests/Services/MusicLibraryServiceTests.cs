@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
@@ -219,24 +220,38 @@ public class MusicLibraryServiceTests
     }
 
     /// <summary>
-    /// 歌曲已入库时应直接返回缓存，不再解码与特征提取。
+    /// 歌曲已入库且 MD5 未变时应直接返回缓存，不再解码与特征提取。
     /// </summary>
     [Fact]
     public async Task ProcessSongAsync_ExistingSong_ReturnsCached()
     {
-        // Arrange: 仓储返回已存在的歌曲
-        var existingSong = new Song { Id = 10, FilePath = "/path/song.mp3", Title = "existing" };
-        _songRepositoryMock.Setup(r => r.GetByFilePathAsync("/path/song.mp3"))
-            .ReturnsAsync(Result<Song?>.Success(existingSong));
+        var tempPath = Path.Combine(Path.GetTempPath(), $"cached_{Guid.NewGuid():N}.mp3");
+        await File.WriteAllBytesAsync(tempPath, [1, 2, 3, 4]);
+        try
+        {
+            var md5 = await FileContentHasher.ComputeMd5HexAsync(tempPath);
+            var existingSong = new Song
+            {
+                Id = 10,
+                FilePath = tempPath,
+                Title = "existing",
+                FileMd5 = md5,
+                AcousticVectorBlob = [1, 2, 3]
+            };
+            _songRepositoryMock.Setup(r => r.GetByFilePathAsync(tempPath))
+                .ReturnsAsync(Result<Song?>.Success(existingSong));
 
-        // Act
-        var result = await _service.ProcessSongAsync("/path/song.mp3");
+            var result = await _service.ProcessSongAsync(tempPath);
 
-        // Assert: 返回缓存数据，未触发解码
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.Id.Should().Be(10);
-        _audioDecoderMock.Verify(
-            d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            result.IsSuccess.Should().BeTrue();
+            result.Value!.Id.Should().Be(10);
+            _audioDecoderMock.Verify(
+                d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
     }
 
     /// <summary>
@@ -245,28 +260,34 @@ public class MusicLibraryServiceTests
     [Fact]
     public async Task ProcessSongAsync_NewSong_DecodesAndExtracts()
     {
-        // Arrange: 仓储无缓存，解码与声学特征提取均成功
-        _songRepositoryMock.Setup(r => r.GetByFilePathAsync(It.IsAny<string>()))
-            .ReturnsAsync(Result<Song?>.Success(null));
-        _audioDecoderMock.Setup(d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<float[]>.Success(new float[] { 0.1f, 0.2f }));
-        _acousticExtractorMock.Setup(e => e.Extract(It.IsAny<float[]>(), It.IsAny<int>()))
-            .Returns(Result<float[]>.Success(new float[] { 1f, 2f }));
-        _vectorSerializerMock.Setup(v => v.Serialize(It.IsAny<float[]>()))
-            .Returns(new byte[] { 1, 2, 3, 4 });
-        _songRepositoryMock.Setup(r => r.InsertAsync(It.IsAny<Song>()))
-            .ReturnsAsync(Result<int>.Success(42));
+        var tempPath = Path.Combine(Path.GetTempPath(), $"new_{Guid.NewGuid():N}.mp3");
+        await File.WriteAllBytesAsync(tempPath, [1, 2, 3, 4]);
+        try
+        {
+            _songRepositoryMock.Setup(r => r.GetByFilePathAsync(tempPath))
+                .ReturnsAsync(Result<Song?>.Success(null));
+            _audioDecoderMock.Setup(d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<float[]>.Success(new float[] { 0.1f, 0.2f }));
+            _acousticExtractorMock.Setup(e => e.Extract(It.IsAny<float[]>(), It.IsAny<int>()))
+                .Returns(Result<float[]>.Success(new float[] { 1f, 2f }));
+            _vectorSerializerMock.Setup(v => v.Serialize(It.IsAny<float[]>()))
+                .Returns(new byte[] { 1, 2, 3, 4 });
+            _songRepositoryMock.Setup(r => r.InsertAsync(It.IsAny<Song>()))
+                .ReturnsAsync(Result<int>.Success(42));
 
-        // Act
-        var result = await _service.ProcessSongAsync("/path/new.mp3");
+            var result = await _service.ProcessSongAsync(tempPath);
 
-        // Assert: 调用了解码、特征提取与插入
-        result.IsSuccess.Should().BeTrue();
-        result.Value!.Id.Should().Be(42);
-        _audioDecoderMock.Verify(
-            d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
-        _acousticExtractorMock.Verify(e => e.Extract(It.IsAny<float[]>(), It.IsAny<int>()), Times.Once);
-        _songRepositoryMock.Verify(r => r.InsertAsync(It.IsAny<Song>()), Times.Once);
+            result.IsSuccess.Should().BeTrue();
+            result.Value!.Id.Should().Be(42);
+            _audioDecoderMock.Verify(
+                d => d.DecodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+            _acousticExtractorMock.Verify(e => e.Extract(It.IsAny<float[]>(), It.IsAny<int>()), Times.Once);
+            _songRepositoryMock.Verify(r => r.InsertAsync(It.IsAny<Song>()), Times.Once);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
     }
 
     /// <summary>

@@ -68,6 +68,9 @@ public class DeepFeatureExtractorFactory : IDeepFeatureExtractor, IDisposable
     public int FeatureDimension => _activeExtractor.FeatureDimension;
 
     /// <inheritdoc/>
+    public DeepModelType ModelType => CurrentModelType;
+
+    /// <inheritdoc/>
     public Task<Result<float[]>> ExtractAsync(float[] samples, int sampleRate, CancellationToken ct = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

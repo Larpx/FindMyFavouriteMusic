@@ -1,3 +1,4 @@
+using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Audio;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Configuration;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Hardware;
 using Larpx.PersonalTools.FindMyFavouriteMusic.Core.Interfaces;
@@ -276,61 +277,66 @@ public class MusicLibraryService : IMusicLibraryService
     {
         try
         {
-            // 幂等性检查：已入库的歌曲判断是否需要补全深度特征
+            var fileInfo = new FileInfo(filePath);
+            if (!fileInfo.Exists)
+            {
+                return Result<SongDto>.Failure($"文件不存在: {filePath}");
+            }
+
+            if (fileInfo.Length > AudioLimits.MaxFileSizeBytes)
+            {
+                return Result<SongDto>.Failure(
+                    $"文件过大（{fileInfo.Length / (1024.0 * 1024):F1}MB），超过硬限制 {AudioLimits.MaxFileSizeDisplay}");
+            }
+
+            var md5 = await FileContentHasher.ComputeMd5HexAsync(filePath, ct);
+            var format = AudioFormatDetector.DetectFromExtension(filePath).ToString();
+
             var existingResult = await _songRepository.GetByFilePathAsync(filePath);
             if (existingResult.IsSuccess && existingResult.Value is not null)
             {
                 var existing = existingResult.Value;
-                // 补全场景：歌曲已入库但无深度向量，且当前模型已加载
-                // 触发场景：用户先在无模型状态下扫描入库，之后加载模型重新扫描
-                if (existing.DeepVectorBlob is null && _deepExtractor.IsModelLoaded)
+                var md5Unchanged = string.Equals(existing.FileMd5, md5, StringComparison.OrdinalIgnoreCase);
+                var hasAcoustic = existing.AcousticVectorBlob is not null;
+
+                // MD5 未变且声学特征可用 → 可跳过解码；深度按模型类型/维度判定是否需补全
+                if (md5Unchanged && hasAcoustic)
                 {
-                    _logger.LogInformation("补全歌曲深度特征: {FilePath}", filePath);
-                    var supplemented = await SupplementDeepVectorAsync(existing, ct);
-                    return Result<SongDto>.Success(MapToDto(supplemented));
+                    if (NeedsDeepSupplement(existing))
+                    {
+                        _logger.LogInformation("MD5 未变，补全/刷新深度特征: {FilePath}", filePath);
+                        var supplemented = await SupplementDeepVectorAsync(existing, md5, fileInfo.Length, format, ct);
+                        return Result<SongDto>.Success(MapToDto(supplemented));
+                    }
+
+                    _logger.LogDebug("MD5 未变且契约匹配，跳过重算: {FilePath}", filePath);
+                    return Result<SongDto>.Success(MapToDto(existing));
                 }
 
-                return Result<SongDto>.Success(MapToDto(existing));
+                // 文件内容变化或缺少声学特征 → 重新提取并更新
+                _logger.LogInformation("文件已变更或缺少声学特征，重新提取: {FilePath}", filePath);
+                var refreshed = await ExtractAndFillAsync(existing, filePath, md5, fileInfo.Length, format, ct);
+                var updateResult = await _songRepository.UpdateFeaturesAsync(refreshed);
+                if (!updateResult.IsSuccess)
+                {
+                    return Result<SongDto>.Failure(updateResult.Error!, updateResult.Exception);
+                }
+
+                return Result<SongDto>.Success(MapToDto(refreshed));
             }
 
-            // 构造新歌曲实体，标题默认取文件名（无扩展名），艺术家暂留空待元数据补全
             var song = new Song
             {
                 FilePath = filePath,
                 Title = Path.GetFileNameWithoutExtension(filePath),
                 Artist = null,
-                IsLiked = false
+                IsLiked = false,
+                FileMd5 = md5,
+                FileSize = fileInfo.Length,
+                Format = format
             };
 
-            byte[]? acousticBlob = null;
-            byte[]? deepBlob = null;
-
-            // 解码阶段：失败则跳过特征提取，仍将基础信息入库
-            var decodeResult = await _audioDecoder.DecodeAsync(filePath, ct);
-            if (decodeResult.IsSuccess && decodeResult.Value is not null)
-            {
-                var samples = decodeResult.Value;
-                // 声学特征提取（同步方法，计算量较小）
-                var acousticResult = _acousticExtractor.Extract(samples, _featureOptions.TargetSampleRate);
-                if (acousticResult.IsSuccess && acousticResult.Value is not null)
-                {
-                    acousticBlob = _vectorSerializer.Serialize(acousticResult.Value);
-                    song.AcousticVector = acousticResult.Value;
-                    song.AcousticVectorBlob = acousticBlob;
-                }
-
-                // 深度特征仅在 ONNX 模型加载成功时提取，避免无谓调用
-                if (_deepExtractor.IsModelLoaded)
-                {
-                    var deepResult = await _deepExtractor.ExtractAsync(samples, _featureOptions.TargetSampleRate, ct);
-                    if (deepResult.IsSuccess && deepResult.Value is not null)
-                    {
-                        deepBlob = _vectorSerializer.Serialize(deepResult.Value);
-                        song.DeepVector = deepResult.Value;
-                        song.DeepVectorBlob = deepBlob;
-                    }
-                }
-            }
+            song = await ExtractAndFillAsync(song, filePath, md5, fileInfo.Length, format, ct);
 
             var insertResult = await _songRepository.InsertAsync(song);
             if (!insertResult.IsSuccess)
@@ -348,17 +354,74 @@ public class MusicLibraryService : IMusicLibraryService
         }
     }
 
-    /// <summary>
-    /// 为已入库但缺少深度向量的歌曲补全深度特征。
-    /// </summary>
-    /// <param name="song">已入库的歌曲实体（含 Id 与 FilePath）</param>
-    /// <param name="ct">取消令牌</param>
-    /// <returns>补全深度向量后的歌曲实体（已更新到数据库）</returns>
-    /// <remarks>
-    /// 补全流程：解码音频 → 提取深度特征 → 序列化为 BLOB → 更新数据库。
-    /// 解码或提取失败时返回原歌曲实体（不更新数据库），保证可用性优先。
-    /// </remarks>
-    private async Task<Song> SupplementDeepVectorAsync(Song song, CancellationToken ct)
+    /// <summary>深度向量缺失，或模型类型/维度与当前加载模型不一致时需要补全。</summary>
+    private bool NeedsDeepSupplement(Song song)
+    {
+        if (!_deepExtractor.IsModelLoaded)
+        {
+            return false;
+        }
+
+        var expectedType = _deepExtractor.ModelType.ToString();
+        var expectedDim = _deepExtractor.FeatureDimension;
+        return song.DeepVectorBlob is null
+               || !string.Equals(song.DeepModelType, expectedType, StringComparison.OrdinalIgnoreCase)
+               || song.DeepDim != expectedDim;
+    }
+
+    private async Task<Song> ExtractAndFillAsync(
+        Song song, string filePath, string md5, long fileSize, string format, CancellationToken ct)
+    {
+        song.FileMd5 = md5;
+        song.FileSize = fileSize;
+        song.Format = format;
+
+        var decodeResult = await _audioDecoder.DecodeAsync(filePath, ct);
+        if (!decodeResult.IsSuccess || decodeResult.Value is null)
+        {
+            return song;
+        }
+
+        var samples = decodeResult.Value;
+        song.DurationMs = (int)(samples.Length / (double)_featureOptions.TargetSampleRate * 1000);
+
+        var acousticResult = _acousticExtractor.Extract(samples, _featureOptions.TargetSampleRate);
+        if (acousticResult.IsSuccess && acousticResult.Value is not null)
+        {
+            song.AcousticVector = acousticResult.Value;
+            song.AcousticVectorBlob = _vectorSerializer.Serialize(acousticResult.Value);
+            song.AcousticDim = acousticResult.Value.Length;
+        }
+
+        if (_deepExtractor.IsModelLoaded)
+        {
+            var deepResult = await _deepExtractor.ExtractAsync(samples, _featureOptions.TargetSampleRate, ct);
+            if (deepResult.IsSuccess && deepResult.Value is not null)
+            {
+                song.DeepVector = deepResult.Value;
+                song.DeepVectorBlob = _vectorSerializer.Serialize(deepResult.Value);
+                song.DeepModelType = _deepExtractor.ModelType.ToString();
+                song.DeepDim = deepResult.Value.Length;
+            }
+            else
+            {
+                song.DeepVector = null;
+                song.DeepVectorBlob = null;
+                song.DeepModelType = null;
+                song.DeepDim = null;
+            }
+        }
+
+        if (song.AcousticVectorBlob is not null || song.DeepVectorBlob is not null)
+        {
+            song.FeatureExtractedAt = DateTime.UtcNow;
+        }
+
+        return song;
+    }
+
+    private async Task<Song> SupplementDeepVectorAsync(
+        Song song, string md5, long fileSize, string format, CancellationToken ct)
     {
         try
         {
@@ -377,17 +440,23 @@ public class MusicLibraryService : IMusicLibraryService
                 return song;
             }
 
-            // 序列化深度向量并更新数据库
             song.DeepVector = deepResult.Value;
             song.DeepVectorBlob = _vectorSerializer.Serialize(deepResult.Value);
+            song.DeepModelType = _deepExtractor.ModelType.ToString();
+            song.DeepDim = deepResult.Value.Length;
+            song.FileMd5 = md5;
+            song.FileSize = fileSize;
+            song.Format = format;
+            song.FeatureExtractedAt = DateTime.UtcNow;
+            if (song.DurationMs is null)
+            {
+                song.DurationMs = (int)(samples.Length / (double)_featureOptions.TargetSampleRate * 1000);
+            }
 
-            // 仅更新深度向量字段，保留原声学向量与喜欢状态
-            var updateResult = await _songRepository.UpdateVectorsAsync(
-                song.Id, song.AcousticVectorBlob, song.DeepVectorBlob);
+            var updateResult = await _songRepository.UpdateFeaturesAsync(song);
             if (!updateResult.IsSuccess)
             {
                 _logger.LogWarning("更新深度向量到数据库失败: {FilePath}, {Error}", song.FilePath, updateResult.Error);
-                // 数据库更新失败时仍返回带深度向量的实体，调用方本次能用到深度特征
             }
 
             _logger.LogInformation("歌曲深度特征补全成功: {FilePath}", song.FilePath);

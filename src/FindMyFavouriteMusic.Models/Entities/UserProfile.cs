@@ -19,6 +19,12 @@ public class UserProfile
     /// <summary>深度特征均值向量的 BLOB 存储</summary>
     public byte[]? DeepMeanVectorBlob { get; set; }
 
+    /// <summary>声学均值所基于的样本数</summary>
+    public int AcousticSampleCount { get; set; }
+
+    /// <summary>深度均值所基于的样本数</summary>
+    public int DeepSampleCount { get; set; }
+
     /// <summary>画像最后更新时间</summary>
     public DateTime LastUpdated { get; set; }
 }

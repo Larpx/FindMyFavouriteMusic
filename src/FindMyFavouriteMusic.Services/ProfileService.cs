@@ -123,6 +123,8 @@ public class ProfileService : IProfileService
             AcousticMeanVectorBlob = _vectorSerializer.Serialize(acousticMean),
             DeepMeanVector = deepMean,
             DeepMeanVectorBlob = deepMean is not null ? _vectorSerializer.Serialize(deepMean) : null,
+            AcousticSampleCount = acousticVectors.Count,
+            DeepSampleCount = deepVectors.Count,
             LastUpdated = DateTime.UtcNow
         };
 
@@ -143,6 +145,8 @@ public class ProfileService : IProfileService
             AcousticMeanVectorBlob = null,
             DeepMeanVector = null,
             DeepMeanVectorBlob = null,
+            AcousticSampleCount = 0,
+            DeepSampleCount = 0,
             LastUpdated = DateTime.UtcNow
         };
         return _profileRepository.SaveAsync(empty);
@@ -233,6 +237,8 @@ public class ProfileService : IProfileService
             DeepMeanVectorBlob = updatedDeep is not null
                 ? _vectorSerializer.Serialize(updatedDeep)
                 : profile.DeepMeanVectorBlob,
+            AcousticSampleCount = acousticSampleCount,
+            DeepSampleCount = updatedDeep is not null || currentDeep is not null ? deepSampleCount : 0,
             LastUpdated = DateTime.UtcNow
         };
 

@@ -103,6 +103,9 @@ public class DeepFeatureExtractor : IDeepFeatureExtractor, IDisposable
     /// <inheritdoc/>
     public int FeatureDimension => VggishOutputDimension;
 
+    /// <inheritdoc/>
+    public DeepModelType ModelType => DeepModelType.VGGish;
+
     /// <summary>
     /// 加载指定路径的 VGGish ONNX 模型到内存中的推理会话。
     /// </summary>

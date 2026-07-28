@@ -94,6 +94,9 @@ public class MertFeatureExtractor : IDeepFeatureExtractor, IDisposable
     /// <inheritdoc/>
     public int FeatureDimension => MertOutputDimension;
 
+    /// <inheritdoc/>
+    public DeepModelType ModelType => DeepModelType.MERT;
+
     /// <summary>
     /// 加载指定路径的 MERT ONNX 模型到推理会话。
     /// </summary>

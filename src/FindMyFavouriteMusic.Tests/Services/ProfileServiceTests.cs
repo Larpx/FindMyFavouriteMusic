@@ -66,6 +66,8 @@ public class ProfileServiceTests : IDisposable
                 Id INTEGER PRIMARY KEY,
                 AcousticMeanVector BLOB,
                 DeepMeanVector BLOB,
+                AcousticSampleCount INTEGER DEFAULT 0,
+                DeepSampleCount INTEGER DEFAULT 0,
                 LastUpdated DATETIME
             )
             """;
