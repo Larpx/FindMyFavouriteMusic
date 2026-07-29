@@ -186,6 +186,33 @@ public class SongRepositoryTests : IDisposable
         liked.Value.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task SourceFields_Update_GetByExternalId_And_FindByTitleArtist()
+    {
+        var id = (await _repo.InsertAsync(new Song
+        {
+            FilePath = "/src.mp3",
+            Title = "Cloud Song",
+            Artist = "Foo/Bar",
+            SourceId = "local",
+            ExternalId = null
+        })).Value;
+
+        (await _repo.UpdateSourceAsync(id, "netease", "999")).IsSuccess.Should().BeTrue();
+
+        var byExt = await _repo.GetBySourceExternalIdAsync("netease", "999");
+        byExt.IsSuccess.Should().BeTrue();
+        byExt.Value!.Id.Should().Be(id);
+        byExt.Value.SourceId.Should().Be("netease");
+        byExt.Value.ExternalId.Should().Be("999");
+
+        var byTitle = await _repo.FindByTitleArtistAsync("Cloud Song", "Foo");
+        byTitle.Value!.Id.Should().Be(id);
+
+        var missing = await _repo.GetBySourceExternalIdAsync("netease", "nope");
+        missing.Value.Should().BeNull();
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearPool(_keepAlive);
