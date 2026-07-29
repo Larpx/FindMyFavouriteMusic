@@ -363,8 +363,9 @@ MigrationBackup/
 FodyWeavers.xsd
 docs/软件著作权申请资料/*
 
-# 本地私有文档（接口探测记录、未公开规划等，不入库）
+# 本地私有文档（接口探测记录、未公开规划等）——仅本机保留，禁止入库/推远程
 docs/private/
+docs/private/**
 
 # 本地临时探测产物（缓存音频、一次性解码工具等）
 .tmp/

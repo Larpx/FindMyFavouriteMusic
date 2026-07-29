@@ -27,6 +27,9 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
     public string Id => MusicSourceIds.Netease;
     public string DisplayName => "网易云音乐";
 
+    /// <summary>当前使用的网易云 API 契约版本（时间戳 ID）。</summary>
+    public string ApiVersionId => NeteaseApiContract.VersionId;
+
     public MusicSourceCapabilities Capabilities { get; } = new()
     {
         SupportsLogin = true,
@@ -40,7 +43,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
     {
         try
         {
-            using var accountDoc = await _api.GetApiAsync("/api/nuser/account/get", ct);
+            using var accountDoc = await _api.GetApiAsync(NeteaseApiContract.Endpoints.AccountGet, ct);
             var root = accountDoc.RootElement;
             if (root.TryGetProperty("account", out var account) && account.ValueKind == JsonValueKind.Object)
             {
@@ -57,7 +60,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
                 var isVip = false;
                 try
                 {
-                    using var vipDoc = await _api.GetApiAsync("/api/music-vip-membership/front/vip/info", ct);
+                    using var vipDoc = await _api.GetApiAsync(NeteaseApiContract.Endpoints.VipInfo, ct);
                     var vipRoot = vipDoc.RootElement;
                     if (vipRoot.TryGetProperty("code", out var codeEl) && codeEl.GetInt32() == 200
                         && vipRoot.TryGetProperty("data", out var data))
@@ -109,7 +112,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
         try
         {
             using var doc = await _api.PostApiFormAsync(
-                "/api/login/qrcode/unikey",
+                NeteaseApiContract.Endpoints.QrUnikey,
                 [new KeyValuePair<string, string>("type", "3")],
                 ct);
             var root = doc.RootElement;
@@ -136,7 +139,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
         try
         {
             using var doc = await _api.PostApiFormAsync(
-                "/api/login/qrcode/client/login",
+                NeteaseApiContract.Endpoints.QrClientLogin,
                 [
                     new KeyValuePair<string, string>("key", sessionKey),
                     new KeyValuePair<string, string>("type", "3")
@@ -195,7 +198,8 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
 
         try
         {
-            using var likeDoc = await _api.GetApiAsync($"/api/song/like/get?uid={auth.Value.UserId}", ct);
+            using var likeDoc = await _api.GetApiAsync(
+                $"{NeteaseApiContract.Endpoints.LikedIds}?uid={auth.Value.UserId}", ct);
             var ids = likeDoc.RootElement.GetProperty("ids").EnumerateArray().Select(e => e.GetInt64()).ToArray();
             if (ids.Length == 0)
             {
@@ -230,7 +234,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
         try
         {
             using var doc = await _api.WeapiAsync(
-                "/weapi/v2/discovery/recommend/songs",
+                NeteaseApiContract.Endpoints.DailyRecommend,
                 new { limit = 30, offset = 0, total = true },
                 ct);
             var root = doc.RootElement;
@@ -256,7 +260,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
     {
         try
         {
-            using var doc = await _api.WeapiAsync("/weapi/discovery/recommend/songs/history/recent", new { }, ct);
+            using var doc = await _api.WeapiAsync(NeteaseApiContract.Endpoints.HistoryRecent, new { }, ct);
             var dates = doc.RootElement.GetProperty("data").GetProperty("dates")
                 .EnumerateArray().Select(e => e.GetString()!).Where(s => !string.IsNullOrEmpty(s)).ToList();
             return Result<IReadOnlyList<string>>.Success(dates);
@@ -272,7 +276,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
         try
         {
             using var doc = await _api.WeapiAsync(
-                "/weapi/discovery/recommend/songs/history/detail",
+                NeteaseApiContract.Endpoints.HistoryDetail,
                 new { date },
                 ct);
             var songs = doc.RootElement.GetProperty("data").GetProperty("songs");
@@ -297,7 +301,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
         try
         {
             using var doc = await _api.WeapiAsync(
-                "/weapi/song/enhance/player/url/v1",
+                NeteaseApiContract.Endpoints.PlayerUrlV1,
                 new
                 {
                     ids = JsonSerializer.Serialize(new[] { songId }),
@@ -343,7 +347,7 @@ public sealed class NeteaseMusicSourcePlugin : IMusicSourcePlugin
     {
         var c = JsonSerializer.Serialize(ids.Select(id => new { id = id.ToString(CultureInfo.InvariantCulture) }));
         var idsJson = JsonSerializer.Serialize(ids);
-        using var doc = await _api.WeapiAsync("/weapi/v3/song/detail", new { c, ids = idsJson }, ct);
+        using var doc = await _api.WeapiAsync(NeteaseApiContract.Endpoints.SongDetail, new { c, ids = idsJson }, ct);
         if (!doc.RootElement.TryGetProperty("songs", out var songs))
         {
             return Result<IReadOnlyList<MusicTrackRef>>.Failure("song/detail 无 songs");

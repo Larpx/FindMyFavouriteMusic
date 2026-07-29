@@ -28,4 +28,15 @@ public class WeapiCryptoTests
         enc1.Length.Should().Be(256);
         enc2.Length.Should().Be(256);
     }
+
+    [Fact]
+    public void Encrypt_EncSecKey_IsExactly256LowerHex()
+    {
+        for (var i = 0; i < 8; i++)
+        {
+            var (_, enc) = WeapiCrypto.Encrypt($$"""{"i":{{i}}}""");
+            enc.Length.Should().Be(256);
+            Regex.IsMatch(enc, "^[0-9a-f]{256}$").Should().BeTrue();
+        }
+    }
 }
