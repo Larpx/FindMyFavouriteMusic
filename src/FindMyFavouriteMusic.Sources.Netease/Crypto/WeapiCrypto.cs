@@ -53,21 +53,35 @@ public static class WeapiCrypto
     }
 
     /// <summary>网易云自定义 RSA：明文反转后按无填充大数模幂。</summary>
+    /// <remarks>
+    /// 输出固定 256 位小写 hex（128 字节大端无符号），与 Web asrsea 一致。
+    /// 注意：不要用 <c>ToString("x")</c> 再截断——.NET 会给“最高位为 1 的正数”前加 <c>0</c>
+    /// 以便 <see cref="NumberStyles.AllowHexSpecifier"/> 往返不为负，长度常为 257；
+    /// 此时截断高位或保留末 256 字符都容易写错，应直接按字节格式化。
+    /// </remarks>
     private static string RsaEncrypt(string text, string pubKeyHex, string modulusHex)
     {
         var reversed = new string(text.Reverse().ToArray());
         var buffer = Encoding.UTF8.GetBytes(reversed);
         var hex = Convert.ToHexString(buffer).ToLowerInvariant();
+        // 前导 00：避免 AllowHexSpecifier 把最高位当成符号位
         var biText = BigInteger.Parse("00" + hex, System.Globalization.NumberStyles.AllowHexSpecifier);
         var biEx = BigInteger.Parse("00" + pubKeyHex, System.Globalization.NumberStyles.AllowHexSpecifier);
-        var biMod = BigInteger.Parse(modulusHex, System.Globalization.NumberStyles.AllowHexSpecifier);
+        var biMod = BigInteger.Parse(
+            modulusHex.StartsWith("00", StringComparison.Ordinal) ? modulusHex : "00" + modulusHex,
+            System.Globalization.NumberStyles.AllowHexSpecifier);
         var biRet = BigInteger.ModPow(biText, biEx, biMod);
-        var result = biRet.ToString("x");
-        if (result.Length > 256)
+
+        // modulus < 2^1024 → 结果可放入 128 字节无符号大端
+        var bytes = biRet.ToByteArray(isUnsigned: true, isBigEndian: true);
+        if (bytes.Length > 128)
         {
-            result = result[^256..];
+            throw new InvalidOperationException(
+                $"weapi encSecKey 为 {bytes.Length} 字节，超过 128，modulus/实现异常。");
         }
 
-        return result.PadLeft(256, '0');
+        Span<byte> padded = stackalloc byte[128];
+        bytes.CopyTo(padded[(128 - bytes.Length)..]);
+        return Convert.ToHexString(padded).ToLowerInvariant();
     }
 }

@@ -30,11 +30,12 @@ public class WeapiCryptoTests
     }
 
     [Fact]
-    public void Encrypt_EncSecKey_IsExactly256LowerHex()
+    public void Encrypt_EncSecKey_IsExactly256LowerHex_OverManyRandomKeys()
     {
-        for (var i = 0; i < 8; i++)
+        // 覆盖随机 AES secretKey → RSA，确保无需（也禁止）截断高位即可稳定得到 256 hex
+        for (var i = 0; i < 64; i++)
         {
-            var (_, enc) = WeapiCrypto.Encrypt($$"""{"i":{{i}}}""");
+            var (_, enc) = WeapiCrypto.Encrypt($$"""{"i":{{i}},"csrf_token":""}""");
             enc.Length.Should().Be(256);
             Regex.IsMatch(enc, "^[0-9a-f]{256}$").Should().BeTrue();
         }
